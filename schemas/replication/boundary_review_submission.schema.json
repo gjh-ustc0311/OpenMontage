@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/boundary_review_submission.schema.json",
+  "title": "Boundary Review Submission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "request_id", "request_sha256", "parent_plan_revision",
+    "review_protocol_version", "reviewer", "decisions"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "request_id": {"type": "string", "pattern": "^brq_[a-f0-9]{16}$"},
+    "request_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "parent_plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "review_protocol_version": {"const": "boundary-visual-review-v1"},
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["ai_coding_assistant", "human"]},
+        "name": {"type": "string"},
+        "version": {"type": "string"}
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "review_item_id", "boundary_id", "relationship", "confidence",
+          "evidence_refs", "rationale"
+        ],
+        "properties": {
+          "review_item_id": {"type": "string", "pattern": "^bri_[a-f0-9]{16}$"},
+          "boundary_id": {"type": "string", "pattern": "^bnd_[a-f0-9]{16}$"},
+          "relationship": {"enum": ["same_scene", "different_scene", "uncertain"]},
+          "confidence": {"enum": ["high", "medium", "low"]},
+          "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string"}
+          },
+          "rationale": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/tools/replication_preprocess.schema.json",
+  "title": "Replication Preprocess Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operation", "project_id", "output_path"],
+  "properties": {
+    "operation": {
+      "type": "string",
+      "enum": ["plan", "export", "validate", "run"]
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "output_path": {"type": "string", "minLength": 1},
+    "source_path": {"type": "string", "minLength": 1},
+    "plan_path": {"type": ["string", "null"]},
+    "config_path": {"type": ["string", "null"]},
+    "profile": {"type": "string", "default": "default-v1"},
+    "parent_plan_revision": {
+      "type": ["string", "null"],
+      "pattern": "^r[0-9]{4}$"
+    },
+    "review_submission": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "../replication/boundary_review_submission.schema.json"}
+      ]
+    },
+    "manual_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "action", "actor", "reason", "parent_plan_revision", "config_fingerprint"
+        ],
+        "properties": {
+          "action": {
+            "enum": ["force_hard", "force_soft", "insert_boundary", "remove_boundary", "drop"]
+          },
+          "actor": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1},
+          "parent_plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+          "config_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      },
+      "default": []
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"operation": {"enum": ["plan", "run"]}}},
+      "then": {"required": ["source_path"]}
+    }
+  ]
+}

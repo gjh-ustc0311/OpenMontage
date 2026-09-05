@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/boundary_review_request.schema.json",
+  "title": "Boundary Review Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "schema_version",
+    "source_sha256",
+    "parent_plan_revision",
+    "config_fingerprint",
+    "review_protocol_version",
+    "review_round",
+    "allowed_relationships",
+    "items",
+    "request_sha256"
+  ],
+  "properties": {
+    "request_id": {"type": "string", "pattern": "^brq_[a-f0-9]{16}$"},
+    "schema_version": {"const": "1.0"},
+    "source_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "parent_plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "config_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "review_protocol_version": {"const": "boundary-visual-review-v1"},
+    "review_round": {"type": "integer", "minimum": 1, "maximum": 2},
+    "allowed_relationships": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["same_scene", "different_scene", "uncertain"]}
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "review_item_id", "boundary_id", "left_segment_id", "right_segment_id",
+          "time", "content_val", "accepted_threshold", "components", "evidence"
+        ],
+        "properties": {
+          "review_item_id": {"type": "string", "pattern": "^bri_[a-f0-9]{16}$"},
+          "boundary_id": {"type": "string", "pattern": "^bnd_[a-f0-9]{16}$"},
+          "left_segment_id": {"type": "string"},
+          "right_segment_id": {"type": "string"},
+          "time": {"$ref": "#/$defs/timePoint"},
+          "content_val": {"type": "number", "minimum": 0},
+          "accepted_threshold": {"type": "number"},
+          "components": {"type": "object"},
+          "evidence": {
+            "type": "object",
+            "minProperties": 7,
+            "additionalProperties": {"$ref": "#/$defs/evidence"}
+          }
+        }
+      }
+    },
+    "request_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "timePoint": {
+      "type": "object",
+      "required": ["pts", "time_base", "seconds"],
+      "properties": {
+        "pts": {"type": "integer"},
+        "time_base": {
+          "type": "object",
+          "required": ["num", "den"],
+          "properties": {
+            "num": {"type": "integer"},
+            "den": {"type": "integer", "minimum": 1}
+          }
+        },
+        "seconds": {"type": "string"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "pts": {"type": "integer"},
+        "time": {"$ref": "#/$defs/timePoint"}
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+# Optional CPU-only dependencies for TikTok/reference-video preprocessing.
+-r requirements.txt
+av==17.1.0
+scenedetect-headless==0.7.1

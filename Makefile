@@ -6,7 +6,7 @@ PIP = $(RUN_PYTHON) -m pip
 
 .DEFAULT_GOAL := setup
 
-.PHONY: setup install install-dev install-gpu test test-contracts lint clean preflight demo demo-list hyperframes-doctor hyperframes-warm venv ensure-venv
+.PHONY: setup install install-dev install-gpu install-replication test test-contracts test-replication lint clean preflight demo demo-list hyperframes-doctor hyperframes-warm venv ensure-venv
 
 # ---- Virtual environment ----
 
@@ -87,6 +87,9 @@ install-gpu: ensure-venv
 	$(PIP) install -r requirements-gpu.txt
 	$(PIP) install diffusers transformers accelerate
 
+install-replication: ensure-venv
+	$(PIP) install -r requirements-replication.txt
+
 # ---- Testing ----
 
 test: ensure-venv
@@ -94,6 +97,9 @@ test: ensure-venv
 
 test-contracts: ensure-venv
 	$(RUN_PYTHON) -m pytest tests/contracts/ -v
+
+test-replication: ensure-venv
+	$(RUN_PYTHON) -m pytest tests/lib/test_replication_preprocess.py tests/tools/test_replication_preprocess.py tests/contracts/test_replication_preprocess_contract.py -v
 
 # ---- Utilities ----
 

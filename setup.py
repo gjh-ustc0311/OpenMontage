@@ -16,4 +16,14 @@ setup(
         "google-genai>=1.0.0",
         "openai>=2.44.0",
     ],
+    extras_require={
+        "replication": [
+            "av==17.1.0",
+            "scenedetect-headless==0.7.1",
+        ],
+    },
+    package_data={
+        "schemas.replication": ["*.json"],
+        "schemas.tools": ["replication_preprocess.schema.json"],
+    },
 )
