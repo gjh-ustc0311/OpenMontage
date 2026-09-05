@@ -12,7 +12,7 @@ profile:
 
 scene_detection:
   backend: pyav
-  initial_threshold: 50
+  initial_threshold: 45
   threshold_step: 5
   minimum_threshold: 20
   min_scene_len_frames: 12

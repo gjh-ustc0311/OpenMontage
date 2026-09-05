@@ -101,6 +101,8 @@ def probe_source(path: Path) -> tuple[dict[str, Any], list[FrameRecord], Fractio
     if len(video_streams) != 1:
         raise MediaAnalysisError("Exactly one video stream is required")
     stream_probe = video_streams[0]
+    if stream_probe.get("color_transfer") in {"smpte2084", "arib-std-b67"}:
+        raise MediaAnalysisError("HDR PQ/HLG input is unsupported; provide an SDR source")
 
     try:
         import av
@@ -166,6 +168,10 @@ def probe_source(path: Path) -> tuple[dict[str, Any], list[FrameRecord], Fractio
         "width": int(stream_probe.get("width") or 0),
         "height": int(stream_probe.get("height") or 0),
         "rotation": rotation,
+        "color": {
+            key: stream_probe.get(key, "unknown")
+            for key in ("pix_fmt", "color_range", "color_space", "color_transfer", "color_primaries")
+        },
         "average_frame_rate": stream_probe.get("avg_frame_rate"),
         "time_base": time_base_json(time_base),
         "start": time_point(start_pts, time_base),
@@ -225,6 +231,8 @@ def analyze_frame_quality(
     time_base: Fraction,
     analysis_width: int,
     config: dict[str, Any],
+    *,
+    include_descriptors: bool = False,
 ) -> dict[int, dict[str, Any]]:
     """Calculate small, deterministic quality metrics for every decoded frame."""
 
@@ -261,6 +269,16 @@ def analyze_frame_quality(
                 "white_ratio": float(np.mean(gray >= white_cutoff)),
                 "stability_delta": stability,
             }
+            if include_descriptors:
+                small = cv2.resize(gray, (9, 8), interpolation=cv2.INTER_AREA)
+                bits = (small[:, 1:] > small[:, :-1]).reshape(-1)
+                dhash = 0
+                for bit in bits:
+                    dhash = (dhash << 1) | int(bit)
+                grid = cv2.resize(rgb, (4, 4), interpolation=cv2.INTER_AREA)
+                result[pts]["descriptor"] = {
+                    "dhash": dhash, "rgb_grid": grid.reshape(-1).tolist(),
+                }
             previous = gray
     return result
 
@@ -754,12 +772,12 @@ def evidence_targets(
     left_edge = pts_values[max(0, cut_index - 1)]
     right_edge = pts_values[min(cut_index, len(pts_values) - 1)]
     return {
-        "left_keyframe": int(left["keyframe"]["pts"]),
+        "left_observation": _nearest_pts(pts_values, (left_start + cut) // 2, left_start, cut),
         "left_context": _nearest_pts(pts_values, cut - context_delta, left_start, cut),
         "left_edge": left_edge,
         "right_edge": right_edge,
         "right_context": _nearest_pts(pts_values, cut + context_delta, cut, right_end),
-        "right_keyframe": int(right["keyframe"]["pts"]),
+        "right_observation": _nearest_pts(pts_values, (cut + right_end) // 2, cut, right_end),
     }
 
 
@@ -787,24 +805,10 @@ def extract_evidence_images(
     mask_top = float(review_config.get("background_mask_top_ratio", "0.15"))
     mask_bottom = float(review_config.get("background_mask_bottom_ratio", "0.95"))
     wanted = {pts for roles in boundary_targets.values() for pts in roles.values()}
-    decoded: dict[int, Image.Image] = {}
-    with av.open(str(path)) as container:
-        stream = container.streams.video[0]
-        stream_base = Fraction(stream.time_base)
-        for frame in container.decode(stream):
-            if frame.pts is None:
-                continue
-            pts = _rescale_pts(frame.pts, Fraction(frame.time_base or stream_base), time_base)
-            if pts not in wanted:
-                continue
-            image = frame.to_image().convert("RGB")
-            if rotation in {90, 180, 270}:
-                image = image.rotate(-rotation, expand=True)
-            decoded[pts] = image.copy()
-            image.close()
-    missing = sorted(wanted - set(decoded))
-    if missing:
-        raise MediaAnalysisError(f"Could not decode review evidence PTS: {missing[:5]}")
+    from .frame_images import save_frames
+    decoded = save_frames(path=path, time_base=time_base, pts_set=wanted,
+                          source={"rotation": rotation}, output_dir=output_dir / "frames",
+                          project_dir=project_dir, preview_size=640, jpeg_quality=evidence_quality)
 
     manifests: dict[str, dict[str, dict[str, Any]]] = {}
     board_paths: list[str] = []
@@ -815,9 +819,7 @@ def extract_evidence_images(
         role_images: list[tuple[str, Image.Image]] = []
         for role, pts in roles.items():
             destination = boundary_dir / f"{role}.jpg"
-            decoded[pts].save(
-                destination, format="JPEG", quality=evidence_quality, optimize=True
-            )
+            shutil.copyfile(project_dir / decoded[pts]["path"], destination)
             relative = destination.resolve().relative_to(project_dir.resolve()).as_posix()
             role_manifest[role] = {
                 "path": relative,
@@ -825,12 +827,14 @@ def extract_evidence_images(
                 "pts": pts,
                 "time": time_point(pts, time_base),
             }
-            role_images.append((role, decoded[pts]))
+            with Image.open(destination) as opened:
+                role_images.append((role, opened.copy()))
 
         # Background-emphasis views conceal the central foreground without a model.
         derived_images: list[Image.Image] = []
         for name, source_role in (("left_background", "left_context"), ("right_background", "right_context")):
-            image = decoded[roles[source_role]].copy()
+            with Image.open(project_dir / decoded[roles[source_role]]["path"]) as opened:
+                image = opened.copy()
             draw = ImageDraw.Draw(image)
             width, height = image.size
             mask_left = (1.0 - mask_width) / 2.0
@@ -888,7 +892,7 @@ def extract_evidence_images(
         board_path = boundary_dir / "evidence-board.jpg"
         board.save(board_path, format="JPEG", quality=evidence_quality)
         board.close()
-        for image in derived_images:
+        for _, image in role_images:
             image.close()
         role_manifest["evidence_board"] = {
             "path": board_path.resolve().relative_to(project_dir.resolve()).as_posix(),
@@ -896,8 +900,6 @@ def extract_evidence_images(
         }
         manifests[boundary_id] = role_manifest
         board_paths.append(str(board_path))
-    for image in decoded.values():
-        image.close()
     return manifests, board_paths
 
 

@@ -57,6 +57,95 @@
         }
       }
     },
+    "representative_selection": {
+      "additionalProperties": false,
+      "properties": {
+        "initial_candidates": {
+          "default": 24,
+          "maximum": 72,
+          "minimum": 4,
+          "title": "Initial Candidates",
+          "type": "integer"
+        },
+        "page_size": {
+          "default": 12,
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Page Size",
+          "type": "integer"
+        },
+        "max_observation_rounds": {
+          "default": 3,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Max Observation Rounds",
+          "type": "integer"
+        },
+        "observations_per_round": {
+          "default": 16,
+          "maximum": 72,
+          "minimum": 1,
+          "title": "Observations Per Round",
+          "type": "integer"
+        },
+        "max_candidates": {
+          "default": 72,
+          "maximum": 256,
+          "minimum": 4,
+          "title": "Max Candidates",
+          "type": "integer"
+        },
+        "preview_long_edge_px": {
+          "default": 640,
+          "maximum": 1280,
+          "minimum": 160,
+          "title": "Preview Long Edge Px",
+          "type": "integer"
+        },
+        "observation_radius_s": {
+          "default": "0.25",
+          "title": "Observation Radius S",
+          "type": "string"
+        },
+        "laplacian_min": {
+          "default": 80,
+          "minimum": 0,
+          "title": "Laplacian Min",
+          "type": "integer"
+        },
+        "luma_min": {
+          "default": 16,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Luma Min",
+          "type": "integer"
+        },
+        "luma_max": {
+          "default": 239,
+          "maximum": 255,
+          "minimum": 0,
+          "title": "Luma Max",
+          "type": "integer"
+        },
+        "black_ratio_max": {
+          "default": "0.95",
+          "title": "Black Ratio Max",
+          "type": "string"
+        },
+        "white_ratio_max": {
+          "default": "0.95",
+          "title": "White Ratio Max",
+          "type": "string"
+        },
+        "novelty_min": {
+          "default": "0.025",
+          "title": "Novelty Min",
+          "type": "string"
+        }
+      },
+      "title": "RepresentativeSelectionConfig",
+      "type": "object"
+    },
     "review": {
       "type": "object", "additionalProperties": false,
       "required": ["protocol_version", "max_agent_rounds", "context_offset_s", "expanded_context_offset_s", "background_mask_width_ratio", "background_mask_top_ratio", "background_mask_bottom_ratio", "keyframe_jpeg_quality", "evidence_jpeg_quality", "contact_sheet_jpeg_quality"],

@@ -9,7 +9,7 @@ available.
 
 - macOS 12.3 (Monterey) or later
 - Apple Silicon Mac (M-series chip)
-- Python 3.10+
+- Python 3.12+
 
 ## Quick Setup
 

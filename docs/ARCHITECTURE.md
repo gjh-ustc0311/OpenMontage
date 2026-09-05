@@ -498,7 +498,7 @@ tests/
 ## System Dependencies
 
 **Required:**
-- Python >= 3.10
+- Python >= 3.12 (default: 3.12; CI: 3.12 and 3.13)
 - FFmpeg (used by ~15 tools)
 
 **Optional (extend capabilities):**

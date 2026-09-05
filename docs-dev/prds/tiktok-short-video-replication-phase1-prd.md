@@ -10,6 +10,8 @@
 | 上游需求 | [`../raw/tiktok-short-video-replication-requirements-001.md`](../raw/tiktok-short-video-replication-requirements-001.md) |
 | 当前交付 | PRD、技术设计与 Phase 1 预处理实现 |
 
+> 后续需求修订（2026-09-05）：关键帧选取与绑定以[关键帧选取优化 PRD](tiktok-short-video-replication-keyframe-selection-prd.md)为新的需求基线；场景替换见[场景替换首版 PRD](tiktok-short-video-replication-phase2-prd.md)。本文保留版本 004 的既有实现基线，各增量功能的实施进度以对应文档为准。
+
 ## 1. 评估结论
 
 原始需求的业务方向成立，但时间单位、长片段定义、短片段兜底、相似度实现、音频导出和结果状态存在实现歧义。本稿将 Phase 1 收敛为一个可独立注册、未来可被完整复刻流水线调用的确定性预处理能力。

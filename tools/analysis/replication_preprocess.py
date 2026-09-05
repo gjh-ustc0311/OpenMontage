@@ -29,7 +29,7 @@ class ReplicationPreprocess(BaseTool):
     """Build exact, reviewable generation clips without embedded AI models."""
 
     name = "replication_preprocess"
-    version = "0.2.0"
+    version = "0.4.0"
     tier = ToolTier.ANALYZE
     capability = "analysis"
     provider = "openmontage"
@@ -56,6 +56,11 @@ class ReplicationPreprocess(BaseTool):
         "apply_agent_boundary_review",
         "export_generation_clips",
         "validate_replication_package",
+        "prepare_representative_candidates",
+        "apply_agent_keyframe_selection",
+        "request_keyframe_observations",
+        "reselect_keyframes_without_transcoding",
+        "publish_readable_delivery_package",
     ]
     best_for = [
         "PTS-accurate preprocessing of short product videos",
@@ -81,6 +86,9 @@ class ReplicationPreprocess(BaseTool):
         "parent_plan_revision",
         "review_submission",
         "manual_overrides",
+        "keyframe_submission",
+        "keyframe_review_segment_ids",
+        "keyframe_observation_requests",
     ]
     side_effects = [
         "writes immutable manifests and review images under the project workspace",
@@ -120,6 +128,12 @@ class ReplicationPreprocess(BaseTool):
             "review_submission": {
                 "type": ["object", "null"],
             },
+            "keyframe_submission": {"type": "object"},
+            "keyframe_review_segment_ids": {
+                "type": "array", "minItems": 1, "uniqueItems": True,
+                "items": {"type": "string", "minLength": 1},
+            },
+            "keyframe_observation_requests": {"type": "array", "minItems": 1, "items": {"type": "object"}},
             "manual_overrides": {
                 "type": "array",
                 "items": {
@@ -166,10 +180,21 @@ class ReplicationPreprocess(BaseTool):
                     "needs_human",
                 ]
             },
+            "anchor_status": {"enum": ["pending_agent", "needs_more_evidence", "needs_human", "ready", "legacy_unreviewed"]},
+            "next_actions": {"type": "array", "items": {"type": "object"}},
             "plan_revision": {"type": "string"},
             "index_path": {"type": "string"},
             "contact_sheet_path": {"type": ["string", "null"]},
             "clip_paths": {"type": "array", "items": {"type": "string"}},
+            "delivery": {"type": ["object", "null"], "properties": {
+                "delivery_fingerprint": {"type": "string"},
+                "manifest_path": {"type": "string"},
+                "manifest_sha256": {"type": "string"},
+            }},
+            "delivery_status": {"enum": ["ready", "pending", "failed"]},
+            "delivery_clip_paths": {"type": "array", "items": {"type": "string"}},
+            "delivery_keyframe_paths": {"type": "array", "items": {"type": "string"}},
+            "delivery_error": {"type": "string"},
             "executed_stages": {"type": "array", "items": {"type": "string"}},
             "reused_stages": {"type": "array", "items": {"type": "string"}},
             "invalidated_stages": {"type": "array", "items": {"type": "string"}},
@@ -209,8 +234,16 @@ class ReplicationPreprocess(BaseTool):
             else:
                 data = engine.run(inputs)
             data.setdefault("index_path", engine._relative(supplied_output))
+            for field in ("anchor_status", "next_action", "next_actions", "selection_strategy"):
+                if field in data.get("index", {}):
+                    data.setdefault(field, data["index"][field])
+            data.setdefault("anchor_status", "legacy_unreviewed")
             data.setdefault("contact_sheet_path", data.get("index", {}).get("contact_sheet_path"))
             data.setdefault("clip_paths", [])
+            data.setdefault("delivery", data.get("index", {}).get("delivery"))
+            data.setdefault("delivery_status", "ready" if data["delivery"] else "pending")
+            data.setdefault("delivery_clip_paths", [])
+            data.setdefault("delivery_keyframe_paths", [])
             data.setdefault(
                 "config_fingerprints",
                 data.get("config", {}).get("config_fingerprints", {}),
@@ -223,8 +256,9 @@ class ReplicationPreprocess(BaseTool):
             data.setdefault("invalidated_stages", [])
             artifacts = list(dict.fromkeys(data.pop("artifacts", [str(supplied_output)])))
             return ToolResult(
-                success=data.get("validation_status") != "failed",
+                success=(data.get("validation_status") != "failed" and data.get("delivery_status") != "failed"),
                 data=data,
+                error=data.get("delivery_error"),
                 artifacts=artifacts,
                 duration_seconds=round(time.monotonic() - started, 3),
             )

@@ -13,7 +13,7 @@
     "request_id": {"type": "string", "pattern": "^brq_[a-f0-9]{16}$"},
     "request_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "parent_plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
-    "review_protocol_version": {"const": "boundary-visual-review-v1"},
+    "review_protocol_version": {"enum": ["boundary-visual-review-v1", "boundary-visual-review-v2"]},
     "reviewer": {
       "type": "object",
       "additionalProperties": false,

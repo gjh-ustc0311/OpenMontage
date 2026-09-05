@@ -40,12 +40,18 @@ def test_replication_json_schemas_are_valid() -> None:
         _load("schemas/replication/boundary_review_request.schema.json"),
         _load("schemas/replication/boundary_review_submission.schema.json"),
         _load("schemas/replication/replication_preprocess_config.schema.json"),
+        _load("schemas/replication/keyframe_selection_request.schema.json"),
+        _load("schemas/replication/keyframe_selection_submission.schema.json"),
+        _load("schemas/replication/keyframe_selection_result.schema.json"),
+        _load("schemas/replication/keyframe_observation_requests.schema.json"),
+        _load("schemas/replication/replication_delivery_manifest.schema.json"),
     ]
     for schema in schemas:
         jsonschema.Draft202012Validator.check_schema(schema)
 
 
-def test_generated_review_request_matches_schema() -> None:
+@pytest.mark.parametrize("protocol", ["boundary-visual-review-v1", "boundary-visual-review-v2"])
+def test_generated_review_request_matches_schema(protocol) -> None:
     item = {
         "review_item_id": "bri_" + "1" * 16,
         "boundary_id": "bnd_" + "2" * 16,
@@ -67,7 +73,7 @@ def test_generated_review_request_matches_schema() -> None:
         source_sha256="4" * 64,
         parent_plan_revision="r0001",
         config_fingerprint="5" * 64,
-        protocol_version="boundary-visual-review-v1",
+        protocol_version=protocol,
         review_round=1,
         items=[item],
     )

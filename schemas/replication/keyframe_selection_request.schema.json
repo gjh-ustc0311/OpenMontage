@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/keyframe_selection_request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "request_id",
+    "request_sha256",
+    "parent_plan_revision",
+    "implementation_revision",
+    "source_sha256",
+    "selection_fingerprint",
+    "limits",
+    "items"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "protocol_version": {
+      "const": "representative-selection-v1"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "parent_plan_revision": {
+      "type": "string",
+      "pattern": "^r[0-9]{4}$"
+    },
+    "implementation_revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selection_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "limits": {
+      "type": "object"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "segment_id",
+          "start",
+          "end",
+          "selection_task_id",
+          "observation_rounds",
+          "candidates",
+          "contact_sheets"
+        ],
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "start": {
+            "type": "object",
+            "required": [
+              "pts",
+              "time_base",
+              "seconds"
+            ],
+            "properties": {
+              "pts": {
+                "type": "integer"
+              },
+              "time_base": {
+                "type": "object",
+                "required": [
+                  "num",
+                  "den"
+                ],
+                "properties": {
+                  "num": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "den": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              "seconds": {
+                "type": "string"
+              }
+            }
+          },
+          "end": {
+            "type": "object",
+            "required": [
+              "pts",
+              "time_base",
+              "seconds"
+            ],
+            "properties": {
+              "pts": {
+                "type": "integer"
+              },
+              "time_base": {
+                "type": "object",
+                "required": [
+                  "num",
+                  "den"
+                ],
+                "properties": {
+                  "num": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "den": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              "seconds": {
+                "type": "string"
+              }
+            }
+          },
+          "selection_task_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observation_rounds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "candidate_id",
+                "pts",
+                "source_time",
+                "atomic_segment_id",
+                "technical_status",
+                "preview",
+                "role"
+              ],
+              "properties": {
+                "candidate_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pts": {
+                  "type": "integer"
+                },
+                "source_time": {
+                  "type": "object",
+                  "required": [
+                    "pts",
+                    "time_base",
+                    "seconds"
+                  ],
+                  "properties": {
+                    "pts": {
+                      "type": "integer"
+                    },
+                    "time_base": {
+                      "type": "object",
+                      "required": [
+                        "num",
+                        "den"
+                      ],
+                      "properties": {
+                        "num": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "den": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    },
+                    "seconds": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "atomic_segment_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "technical_status": {
+                  "enum": [
+                    "passed",
+                    "failed"
+                  ]
+                },
+                "preview": {
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                },
+                "role": {
+                  "const": "observation"
+                }
+              }
+            }
+          },
+          "contact_sheets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

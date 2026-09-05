@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/keyframe_selection_result.schema.json",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "anchor_status",
+    "segments"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0"
+    },
+    "anchor_status": {
+      "enum": [
+        "pending_agent",
+        "needs_more_evidence",
+        "needs_human",
+        "ready",
+        "legacy_unreviewed"
+      ]
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "segment_id",
+          "selection"
+        ],
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selection": {
+            "type": "object",
+            "required": [
+              "status",
+              "anchors",
+              "candidates"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "pending_agent",
+                  "needs_more_evidence",
+                  "needs_human",
+                  "ready",
+                  "legacy_unreviewed"
+                ]
+              },
+              "anchors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "anchor_id",
+                    "atomic_segment_id",
+                    "pts",
+                    "source_time",
+                    "atomic_segment_offset",
+                    "role",
+                    "path",
+                    "sha256",
+                    "purpose"
+                  ],
+                  "properties": {
+                    "anchor_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "atomic_segment_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "pts": {
+                      "type": "integer"
+                    },
+                    "source_time": {
+                      "type": "object",
+                      "required": [
+                        "pts",
+                        "time_base",
+                        "seconds"
+                      ],
+                      "properties": {
+                        "pts": {
+                          "type": "integer"
+                        },
+                        "time_base": {
+                          "type": "object",
+                          "required": [
+                            "num",
+                            "den"
+                          ],
+                          "properties": {
+                            "num": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "den": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          }
+                        },
+                        "seconds": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "atomic_segment_offset": {
+                      "type": "object",
+                      "required": [
+                        "pts",
+                        "time_base",
+                        "seconds"
+                      ],
+                      "properties": {
+                        "pts": {
+                          "type": "integer"
+                        },
+                        "time_base": {
+                          "type": "object",
+                          "required": [
+                            "num",
+                            "den"
+                          ],
+                          "properties": {
+                            "num": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "den": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          }
+                        },
+                        "seconds": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "role": {
+                      "enum": [
+                        "primary_representative",
+                        "supplementary_anchor"
+                      ]
+                    },
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "purpose": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              "candidates": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "candidate_id",
+                    "pts",
+                    "source_time",
+                    "atomic_segment_id",
+                    "technical_status",
+                    "preview",
+                    "role"
+                  ],
+                  "properties": {
+                    "candidate_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "pts": {
+                      "type": "integer"
+                    },
+                    "source_time": {
+                      "type": "object",
+                      "required": [
+                        "pts",
+                        "time_base",
+                        "seconds"
+                      ],
+                      "properties": {
+                        "pts": {
+                          "type": "integer"
+                        },
+                        "time_base": {
+                          "type": "object",
+                          "required": [
+                            "num",
+                            "den"
+                          ],
+                          "properties": {
+                            "num": {
+                              "type": "integer",
+                              "minimum": 1
+                            },
+                            "den": {
+                              "type": "integer",
+                              "minimum": 1
+                            }
+                          }
+                        },
+                        "seconds": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "atomic_segment_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "technical_status": {
+                      "enum": [
+                        "passed",
+                        "failed"
+                      ]
+                    },
+                    "preview": {
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "sha256": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      }
+                    },
+                    "role": {
+                      "const": "observation"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

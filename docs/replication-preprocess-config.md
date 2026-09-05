@@ -60,3 +60,14 @@ export:
 | `export` | 保留计划，只导出新的 variant |
 
 不同导出配置写入 `assets/video/replication/clips/<plan-revision>/<export-fingerprint-prefix>/`，旧 variant 不会被覆盖。返回值中的 `executed_stages`、`reused_stages` 和 `invalidated_stages` 可用于确认实际行为。
+
+## 易读交付命名
+
+当时间轴计划、关键帧和媒体导出均通过审核后，工具会额外发布易读交付包：
+
+- 视频按源时间轴命名为 `S01.mp4`、`S02.mp4`；
+- 每个视频关联的关键帧按片内时间命名为 `S01_K01.png`、`S01_K02.png`；
+- `K01` 表示片段中的第一张代表帧，不表示时间零点；
+- 完整映射写入 `artifacts/replication/delivery/<plan-revision>/<delivery-fingerprint-prefix>/manifest.json`。
+
+视频和图片位于各自 `assets/.../replication/delivery/` 目录，均为已验证规范媒体的独立、逐字节一致副本。内部 `clip_id`、`anchor_id` 和原始路径继续保留在清单中，用于缓存、审核和跨修订追溯。`clip_paths` 保持原有语义；调用方可通过 `delivery_clip_paths`、`delivery_keyframe_paths` 和 `delivery` 获取易读交付文件。

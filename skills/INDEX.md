@@ -288,6 +288,8 @@ Cross-cutting skills that apply to all pipelines:
 |-------|------|---------|
 | Onboarding | `meta/onboarding.md` | First-interaction greeting, capability discovery, starter prompts |
 | Reviewer | `meta/reviewer.md` | Self-review protocol after every stage |
+| Replication Boundary Review | `meta/replication-boundary-review.md` | Independent visual review of adjacent scene relationships |
+| Replication Keyframe Selection | `meta/replication-keyframe-selection.md` | One representative per atomic segment, whole-segment review and targeted observations |
 | Checkpoint Protocol | `meta/checkpoint-protocol.md` | When/how to checkpoint and request human approval |
 | Skill Creator | `meta/skill-creator.md` | Dynamically create new skills during pipeline runs |
 | Animation Runtime Selector | `meta/animation-runtime-selector.md` | Choose render runtime + animation library per scene |

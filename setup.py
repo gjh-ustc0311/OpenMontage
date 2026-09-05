@@ -5,7 +5,7 @@ setup(
     version="0.1.0",
     description="AI-Orchestrated Video Production Platform",
     packages=find_packages(),
-    python_requires=">=3.10",
+    python_requires=">=3.12",
     install_requires=[
         "pyyaml>=6.0",
         "pydantic>=2.0",

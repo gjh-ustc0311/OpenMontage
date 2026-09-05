@@ -26,7 +26,7 @@
     "config_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "analysis_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "review_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "review_protocol_version": {"const": "boundary-visual-review-v1"},
+    "review_protocol_version": {"enum": ["boundary-visual-review-v1", "boundary-visual-review-v2"]},
     "review_round": {"type": "integer", "minimum": 1, "maximum": 2},
     "allowed_relationships": {
       "type": "array",

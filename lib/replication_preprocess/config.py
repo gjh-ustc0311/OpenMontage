@@ -18,6 +18,8 @@ from .storage import sha256_file, sha256_json
 
 
 TOOL_IMPLEMENTATION_REVISION = "replication-preprocess-002"
+# Keep the existing analysis/export revision stable: selection does not change cuts.
+SELECTION_IMPLEMENTATION_REVISION = "representative-selection-001"
 DEFAULT_PROFILE = "default-v1"
 _PROFILE_RESOURCE = f"profiles/{DEFAULT_PROFILE}.yaml"
 _DERIVED_KEYS = {
@@ -110,6 +112,36 @@ class ReviewConfig(_StrictModel):
     contact_sheet_jpeg_quality: int = Field(ge=1, le=100)
 
 
+class RepresentativeSelectionConfig(_StrictModel):
+    initial_candidates: int = Field(default=24, ge=4, le=72)
+    page_size: int = Field(default=12, ge=1, le=12)
+    max_observation_rounds: int = Field(default=3, ge=0, le=10)
+    observations_per_round: int = Field(default=16, ge=1, le=72)
+    max_candidates: int = Field(default=72, ge=4, le=256)
+    preview_long_edge_px: int = Field(default=640, ge=160, le=1280)
+    observation_radius_s: str = "0.25"
+    laplacian_min: int = Field(default=80, ge=0)
+    luma_min: int = Field(default=16, ge=0, le=255)
+    luma_max: int = Field(default=239, ge=0, le=255)
+    black_ratio_max: str = "0.95"
+    white_ratio_max: str = "0.95"
+    novelty_min: str = "0.025"
+
+    @model_validator(mode="after")
+    def check_limits(self) -> "RepresentativeSelectionConfig":
+        if self.page_size > self.initial_candidates:
+            raise ValueError("selection page_size must not exceed initial_candidates")
+        if self.initial_candidates + self.max_observation_rounds * self.observations_per_round > self.max_candidates:
+            raise ValueError("selection candidate budget is smaller than initial plus observation limits")
+        if self.luma_min > self.luma_max:
+            raise ValueError("selection luma_min must not exceed luma_max")
+        if _decimal(self.observation_radius_s, "observation_radius_s") < 0:
+            raise ValueError("observation_radius_s must be non-negative")
+        for name in ("black_ratio_max", "white_ratio_max", "novelty_min"):
+            _ratio(getattr(self, name), name)
+        return self
+
+
 class RegroupConfig(_StrictModel):
     max_atomic_segments: int = Field(ge=1, le=3)
     allow_merge_two_normal_segments: Literal[False] = False
@@ -139,6 +171,9 @@ class ReplicationPreprocessConfig(_StrictModel):
     review: ReviewConfig
     regroup: RegroupConfig
     export: ExportConfig
+    representative_selection: RepresentativeSelectionConfig = Field(
+        default_factory=RepresentativeSelectionConfig
+    )
 
     @model_validator(mode="after")
     def validate_cross_field_contract(self) -> "ReplicationPreprocessConfig":
@@ -282,7 +317,12 @@ def _fingerprints(effective: dict[str, Any]) -> dict[str, str]:
         "tool_implementation_revision": TOOL_IMPLEMENTATION_REVISION,
         "export": effective["export"],
     })
-    return {"analysis": analysis, "review": review, "planning": planning, "export": export}
+    selection = sha256_json({
+        "analysis_fingerprint": analysis,
+        "implementation_revision": SELECTION_IMPLEMENTATION_REVISION,
+        "representative_selection": effective["representative_selection"],
+    })
+    return {"analysis": analysis, "review": review, "planning": planning, "export": export, "selection": selection}
 
 
 def load_config(path: str | None = None, *, profile: str = DEFAULT_PROFILE) -> dict[str, Any]:

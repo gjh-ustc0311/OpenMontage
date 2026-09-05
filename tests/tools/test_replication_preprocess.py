@@ -136,8 +136,8 @@ def test_plan_review_export_validate_round_trip(
     assert request["items"]
     for item in request["items"]:
         assert set(item["evidence"]) >= {
-            "left_keyframe", "left_context", "left_edge", "right_edge",
-            "right_context", "right_keyframe", "left_background",
+            "left_observation", "left_context", "left_edge", "right_edge",
+            "right_context", "right_observation", "left_background",
             "right_background", "evidence_board",
         }
         for evidence in item["evidence"].values():
@@ -393,8 +393,9 @@ def test_run_reuses_stages_and_keeps_export_variants(
 
     assert regrouped.success is True, regrouped.error
     assert regrouped.data["plan_revision"] == "r0003"
-    assert set(regrouped.data["executed_stages"]) >= {"planning", "export"}
-    assert set(regrouped.data["reused_stages"]) >= {"analysis", "review"}
+    assert "planning" in regrouped.data["executed_stages"]
+    assert set(regrouped.data["reused_stages"]) >= {"analysis", "review", "export"}
+    assert regrouped.data["clip_paths"] == export_only.data["clip_paths"]
     assert regrouped.data["invalidated_stages"] == ["planning", "export"]
 
     old_state = json.loads(

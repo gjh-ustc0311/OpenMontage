@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/replication_delivery_manifest.schema.json",
+  "title": "Replication Readable Delivery Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "naming_version", "project_id", "plan_revision",
+    "source_sha256", "plan_state_ref", "export_ref", "delivery_fingerprint", "clips"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "naming_version": {"const": "sequence-v1"},
+    "project_id": {"type": "string", "minLength": 1},
+    "plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "source_sha256": {"$ref": "#/$defs/hash"},
+    "plan_state_ref": {"$ref": "#/$defs/reference"},
+    "export_ref": {"type": "object"},
+    "delivery_fingerprint": {"$ref": "#/$defs/hash"},
+    "clips": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/clip"}
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reference": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "time_base": {
+      "type": "object",
+      "required": ["num", "den"],
+      "properties": {
+        "num": {"type": "integer", "minimum": 1},
+        "den": {"type": "integer", "minimum": 1}
+      }
+    },
+    "time_point": {
+      "type": "object",
+      "required": ["pts", "time_base", "seconds"],
+      "properties": {
+        "pts": {"type": "integer"},
+        "time_base": {"$ref": "#/$defs/time_base"},
+        "seconds": {"type": "string"}
+      }
+    },
+    "keyframe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence", "display_id", "anchor_id", "atomic_segment_id", "clip_id",
+        "role", "source_time", "atomic_segment_offset", "generation_clip_offset",
+        "source_path", "path", "sha256"
+      ],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1},
+        "display_id": {"type": "string", "pattern": "^S[0-9]{2,}_K[0-9]{2,}$"},
+        "anchor_id": {"type": "string", "minLength": 1},
+        "atomic_segment_id": {"type": "string", "minLength": 1},
+        "clip_id": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1},
+        "source_time": {"$ref": "#/$defs/time_point"},
+        "atomic_segment_offset": {"$ref": "#/$defs/time_point"},
+        "generation_clip_offset": {"$ref": "#/$defs/time_point"},
+        "source_path": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "pattern": "^assets/images/replication/delivery/r[0-9]{4}/[a-f0-9]{16}(?:-repair-[1-9][0-9]*)?/S[0-9]{2,}_K[0-9]{2,}\\.png$"},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence", "display_id", "clip_id", "start", "end", "duration_s",
+        "atomic_segment_ids", "source_path", "path", "sha256", "keyframes"
+      ],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1},
+        "display_id": {"type": "string", "pattern": "^S[0-9]{2,}$"},
+        "clip_id": {"type": "string", "minLength": 1},
+        "start": {"$ref": "#/$defs/time_point"},
+        "end": {"$ref": "#/$defs/time_point"},
+        "duration_s": {"type": "string"},
+        "atomic_segment_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "source_path": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "pattern": "^assets/video/replication/delivery/r[0-9]{4}/[a-f0-9]{16}(?:-repair-[1-9][0-9]*)?/S[0-9]{2,}\\.mp4$"},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "keyframes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/keyframe"}}
+      }
+    }
+  }
+}

@@ -32,6 +32,12 @@
         {"$ref": "../replication/boundary_review_submission.schema.json"}
       ]
     },
+    "keyframe_submission": {"$ref": "../replication/keyframe_selection_submission.schema.json"},
+    "keyframe_review_segment_ids": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "keyframe_observation_requests": {"$ref": "../replication/keyframe_observation_requests.schema.json"},
     "manual_overrides": {
       "type": "array",
       "items": {

@@ -6,6 +6,8 @@
 | 设计版本 | 002 |
 | 状态 | 已实施 |
 
+> 关键帧增量实现（工具 0.3.0）见[关键帧选取优化实施设计](tiktok-short-video-replication-keyframe-selection-plan.md)。本文保留既有预处理设计；选帧、独立审核、图片角色与媒体复用以增量设计为准。
+
 ## 1. 设计目标
 
 本设计实现 PRD 版本 004 中的专用预处理能力，暂不新增流水线。代码以注册工具 `replication_preprocess` 接入 OpenMontage；创意决策仍由 Agent 和流水线技能负责，Python 只承担确定性媒体分析、规划、持久化和校验。
@@ -262,7 +264,7 @@ scenedetect-headless==0.7.1
 av==17.1.0
 ```
 
-PyAV 17.1.0 支持仓库的 Python 3.10 下限；PySceneDetect 必须使用 headless 包以避免引入 GUI 运行时。依赖通过 `requirements-replication.txt` 和 `openmontage[replication]` 隔离安装。运行不联网、不下载模型，也不要求 GPU。
+项目最低 Python 版本为 3.12；预处理继续使用 PyAV 17.1.0，并使用 headless 版 PySceneDetect 避免引入 GUI 运行时。依赖通过 `requirements-replication.txt` 和 `openmontage[replication]` 隔离安装。运行不联网、不下载模型，也不要求 GPU。
 
 实现依据：
 
