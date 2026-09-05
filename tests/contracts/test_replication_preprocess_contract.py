@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from lib.replication_preprocess.models import time_point
+from lib.replication_preprocess.config import load_config
 from lib.replication_preprocess.review import build_review_request
 from tools.analysis.replication_preprocess import ReplicationPreprocess
 from tools.tool_registry import ToolRegistry
@@ -38,6 +39,7 @@ def test_replication_json_schemas_are_valid() -> None:
         _load("schemas/tools/replication_preprocess.schema.json"),
         _load("schemas/replication/boundary_review_request.schema.json"),
         _load("schemas/replication/boundary_review_submission.schema.json"),
+        _load("schemas/replication/replication_preprocess_config.schema.json"),
     ]
     for schema in schemas:
         jsonschema.Draft202012Validator.check_schema(schema)
@@ -73,3 +75,23 @@ def test_generated_review_request_matches_schema() -> None:
     jsonschema.Draft202012Validator(
         _load("schemas/replication/boundary_review_request.schema.json")
     ).validate(request)
+
+
+def test_default_effective_config_matches_published_schema() -> None:
+    effective = load_config()
+    source_fields = {
+        key: value
+        for key, value in effective.items()
+        if key
+        not in {
+            "tool_fingerprint",
+            "config_fingerprint",
+            "config_fingerprints",
+            "config_sources",
+            "plan_fingerprint",
+            "export_fingerprint",
+        }
+    }
+    jsonschema.Draft202012Validator(
+        _load("schemas/replication/replication_preprocess_config.schema.json")
+    ).validate(source_fields)

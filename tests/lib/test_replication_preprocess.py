@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fractions import Fraction
 from copy import deepcopy
+import json
 
 import pytest
 
@@ -313,3 +314,31 @@ def test_config_rejects_backends_or_policies_the_engine_does_not_implement() -> 
     config["regroup"]["allow_cross_hard_boundary"] = True
     with pytest.raises(ValueError, match="hard boundaries"):
         validate_config(config)
+
+
+def test_partial_config_overlay_has_stage_local_fingerprints(tmp_path) -> None:
+    base = load_config()
+    override = tmp_path / "replication-preprocess.yaml"
+    override.write_text("export:\n  crf: 22\n", encoding="utf-8")
+
+    changed = load_config(str(override))
+
+    assert changed["export"]["crf"] == 22
+    assert changed["config_fingerprints"]["analysis"] == base["config_fingerprints"]["analysis"]
+    assert changed["config_fingerprints"]["review"] == base["config_fingerprints"]["review"]
+    assert changed["config_fingerprints"]["planning"] == base["config_fingerprints"]["planning"]
+    assert changed["config_fingerprints"]["export"] != base["config_fingerprints"]["export"]
+    assert changed["config_sources"][-1]["kind"] == "project_override"
+    assert changed["config_sources"][-1]["path"] == str(override.resolve())
+
+
+def test_config_overlay_rejects_unknown_fields_and_non_string_decimals(tmp_path) -> None:
+    unknown = tmp_path / "unknown.json"
+    unknown.write_text(json.dumps({"scene_detection": {"magic": 1}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="magic"):
+        load_config(str(unknown))
+
+    wrong_type = tmp_path / "wrong-type.json"
+    wrong_type.write_text(json.dumps({"profile": {"min_duration_s": 3.2}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="min_duration_s"):
+        load_config(str(wrong_type))

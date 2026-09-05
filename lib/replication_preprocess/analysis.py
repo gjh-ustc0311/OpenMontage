@@ -224,6 +224,7 @@ def analyze_frame_quality(
     path: Path,
     time_base: Fraction,
     analysis_width: int,
+    config: dict[str, Any],
 ) -> dict[int, dict[str, Any]]:
     """Calculate small, deterministic quality metrics for every decoded frame."""
 
@@ -234,6 +235,9 @@ def analyze_frame_quality(
     except ImportError as exc:
         raise MediaAnalysisError("PyAV, NumPy, and OpenCV-headless are required") from exc
     result: dict[int, dict[str, Any]] = {}
+    keyframe = config["keyframe"]
+    black_cutoff = int(keyframe["black_pixel_luma_max"])
+    white_cutoff = int(keyframe["white_pixel_luma_min"])
     previous = None
     with av.open(str(path)) as container:
         stream = container.streams.video[0]
@@ -253,8 +257,8 @@ def analyze_frame_quality(
             result[pts] = {
                 "sharpness": float(cv2.Laplacian(gray, cv2.CV_64F).var()),
                 "luma_mean": float(gray.mean()),
-                "black_ratio": float(np.mean(gray <= 16)),
-                "white_ratio": float(np.mean(gray >= 239)),
+                "black_ratio": float(np.mean(gray <= black_cutoff)),
+                "white_ratio": float(np.mean(gray >= white_cutoff)),
                 "stability_delta": stability,
             }
             previous = gray
@@ -274,12 +278,23 @@ def _quality_passes(metrics: dict[str, Any], config: dict[str, Any]) -> bool:
 
 def _quality_score(metrics: dict[str, Any], config: dict[str, Any], proximity: float) -> float:
     keyframe = config["keyframe"]
-    sharp = min(metrics["sharpness"] / max(float(keyframe["laplacian_min"]) * 2.0, 1.0), 1.0)
+    sharpness_multiplier = float(keyframe["sharpness_normalizer_multiplier"])
+    sharp = min(
+        metrics["sharpness"]
+        / max(float(keyframe["laplacian_min"]) * sharpness_multiplier, 1.0),
+        1.0,
+    )
     exposure = 1.0 - abs(metrics["luma_mean"] - 127.5) / 127.5
     stability = 1.0 - min(
         metrics["stability_delta"] / max(float(keyframe["stability_delta_max"]), 1e-9), 1.0
     )
-    return 0.40 * sharp + 0.25 * exposure + 0.20 * stability + 0.15 * proximity
+    weights = keyframe["quality_score_weights"]
+    return (
+        float(weights["sharpness"]) * sharp
+        + float(weights["exposure"]) * exposure
+        + float(weights["stability"]) * stability
+        + float(weights["proximity"]) * proximity
+    )
 
 
 def _threshold_ladder(config: dict[str, Any]) -> list[int]:
@@ -382,10 +397,14 @@ def select_boundaries(
             selected[accepted["pts"]] = accepted
             continue
 
-        window_start = left + math.ceil(Fraction(8, 1) / time_base)
+        window_start = left + math.ceil(
+            Fraction(str(profile["forced_split_search_start_s"])) / time_base
+        )
         window_end = min(
             right,
-            left + math.floor(Fraction(12, 1) / time_base),
+            left + math.floor(
+                Fraction(str(profile["forced_split_search_end_s"])) / time_base
+            ),
             left + math.floor(Fraction(str(profile["forced_split_target_max_s"])) / time_base),
         )
         legal_rightmost = right - math.ceil(min_duration / time_base)
@@ -425,7 +444,10 @@ def select_boundaries(
     boundaries: list[dict[str, Any]] = []
     for item in sorted(selected.values(), key=lambda value: value["pts"]):
         boundary_id = stable_id(
-            "bnd", source["file_sha256"], item["pts"], config["config_fingerprint"]
+            "bnd",
+            source["file_sha256"],
+            item["pts"],
+            config["config_fingerprints"]["analysis"],
         )
         boundary_type = item["boundary_type"]
         boundaries.append({
@@ -471,7 +493,11 @@ def build_atomic_segments(
     segments: list[dict[str, Any]] = []
     for index, (left, right) in enumerate(zip(points, points[1:])):
         segment_id = stable_id(
-            "seg", source["file_sha256"], left, right, config["config_fingerprint"]
+            "seg",
+            source["file_sha256"],
+            left,
+            right,
+            config["config_fingerprints"]["analysis"],
         )
         segments.append({
             "schema_version": "1.0",
@@ -504,12 +530,16 @@ def apply_separator_rules(
     deltas = [right - left for left, right in zip(pts_values, pts_values[1:])]
     nominal_delta = max(1, int(median(deltas))) if deltas else 1
     minimum = Fraction(str(config["scene_detection"]["separator_min_duration_s"]))
-    context_delta = math.ceil(Fraction(1, 2) / time_base)
+    context_delta = math.ceil(
+        Fraction(str(config["scene_detection"]["separator_context_s"])) / time_base
+    )
+    solid_ratio = float(config["scene_detection"]["separator_solid_ratio"])
 
     def solid(pts: int) -> bool:
         metrics = qualities.get(pts)
         return bool(metrics) and (
-            metrics["black_ratio"] >= 0.98 or metrics["white_ratio"] >= 0.98
+            metrics["black_ratio"] >= solid_ratio
+            or metrics["white_ratio"] >= solid_ratio
         )
 
     for boundary in boundaries:
@@ -609,6 +639,7 @@ def extract_keyframe_images(
     segments: list[dict[str, Any]],
     output_dir: Path,
     project_dir: Path,
+    jpeg_quality: int = 94,
 ) -> list[str]:
     """Write one canonical keyframe image for every segment with a chosen PTS."""
 
@@ -643,7 +674,9 @@ def extract_keyframe_images(
             segment["keyframe"] = {"quality_status": "failed", "reason": "selected_frame_decode_failed"}
             continue
         destination = output_dir / f"{segment['segment_id']}.jpg"
-        decoded[pts].save(destination, format="JPEG", quality=94, optimize=True)
+        decoded[pts].save(
+            destination, format="JPEG", quality=int(jpeg_quality), optimize=True
+        )
         relative = destination.resolve().relative_to(project_dir.resolve()).as_posix()
         segment["keyframe"]["path"] = relative
         segment["keyframe"]["sha256"] = sha256_file(destination)
@@ -654,7 +687,10 @@ def extract_keyframe_images(
 
 
 def build_keyframe_contact_sheet(
-    segments: list[dict[str, Any]], destination: Path, project_dir: Path
+    segments: list[dict[str, Any]],
+    destination: Path,
+    project_dir: Path,
+    jpeg_quality: int = 90,
 ) -> str | None:
     """Render a compact, labeled overview for every selected atomic keyframe."""
 
@@ -687,7 +723,7 @@ def build_keyframe_contact_sheet(
         )
         draw.text((column * cell_width + 8, row * cell_height + 12), label, fill="white", font=font)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(destination, format="JPEG", quality=90)
+    sheet.save(destination, format="JPEG", quality=int(jpeg_quality))
     sheet.close()
     return str(destination)
 
@@ -736,6 +772,7 @@ def extract_evidence_images(
     boundary_metadata: dict[str, dict[str, Any]],
     output_dir: Path,
     project_dir: Path,
+    review_config: dict[str, Any] | None = None,
 ) -> tuple[dict[str, dict[str, dict[str, Any]]], list[str]]:
     """Decode requested PTS once, write role images and per-boundary boards."""
 
@@ -744,6 +781,11 @@ def extract_evidence_images(
     except ImportError as exc:
         raise MediaAnalysisError("PyAV is required to extract review evidence") from exc
     output_dir.mkdir(parents=True, exist_ok=True)
+    review_config = review_config or {}
+    evidence_quality = int(review_config.get("evidence_jpeg_quality", 92))
+    mask_width = float(review_config.get("background_mask_width_ratio", "0.50"))
+    mask_top = float(review_config.get("background_mask_top_ratio", "0.15"))
+    mask_bottom = float(review_config.get("background_mask_bottom_ratio", "0.95"))
     wanted = {pts for roles in boundary_targets.values() for pts in roles.values()}
     decoded: dict[int, Image.Image] = {}
     with av.open(str(path)) as container:
@@ -773,7 +815,9 @@ def extract_evidence_images(
         role_images: list[tuple[str, Image.Image]] = []
         for role, pts in roles.items():
             destination = boundary_dir / f"{role}.jpg"
-            decoded[pts].save(destination, format="JPEG", quality=92, optimize=True)
+            decoded[pts].save(
+                destination, format="JPEG", quality=evidence_quality, optimize=True
+            )
             relative = destination.resolve().relative_to(project_dir.resolve()).as_posix()
             role_manifest[role] = {
                 "path": relative,
@@ -789,9 +833,21 @@ def extract_evidence_images(
             image = decoded[roles[source_role]].copy()
             draw = ImageDraw.Draw(image)
             width, height = image.size
-            draw.rectangle((width * 0.25, height * 0.15, width * 0.75, height * 0.95), fill=(96, 96, 96))
+            mask_left = (1.0 - mask_width) / 2.0
+            mask_right = mask_left + mask_width
+            draw.rectangle(
+                (
+                    width * mask_left,
+                    height * mask_top,
+                    width * mask_right,
+                    height * mask_bottom,
+                ),
+                fill=(96, 96, 96),
+            )
             destination = boundary_dir / f"{name}.jpg"
-            image.save(destination, format="JPEG", quality=92, optimize=True)
+            image.save(
+                destination, format="JPEG", quality=evidence_quality, optimize=True
+            )
             relative = destination.resolve().relative_to(project_dir.resolve()).as_posix()
             role_manifest[name] = {
                 "path": relative,
@@ -830,7 +886,7 @@ def extract_evidence_images(
             )
             thumb.close()
         board_path = boundary_dir / "evidence-board.jpg"
-        board.save(board_path, format="JPEG", quality=92)
+        board.save(board_path, format="JPEG", quality=evidence_quality)
         board.close()
         for image in derived_images:
             image.close()
@@ -845,7 +901,9 @@ def extract_evidence_images(
     return manifests, board_paths
 
 
-def build_overview_contact_sheet(board_paths: list[str], destination: Path) -> str | None:
+def build_overview_contact_sheet(
+    board_paths: list[str], destination: Path, jpeg_quality: int = 90
+) -> str | None:
     if not board_paths:
         return None
     boards: list[Image.Image] = []
@@ -865,7 +923,7 @@ def build_overview_contact_sheet(board_paths: list[str], destination: Path) -> s
         sheet.paste(item, ((width - item.width) // 2, y))
         y += item.height + 12
     destination.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(destination, format="JPEG", quality=90)
+    sheet.save(destination, format="JPEG", quality=int(jpeg_quality))
     sheet.close()
     for image in boards + rendered:
         image.close()

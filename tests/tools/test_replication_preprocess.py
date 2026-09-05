@@ -308,3 +308,127 @@ def test_output_path_cannot_escape_project_workspace(tmp_path: Path, monkeypatch
     assert result.success is False
     assert result.data["plan_status"] == "blocked"
     assert "under project workspace" in (result.error or "")
+
+
+def test_invalid_config_is_rejected_before_media_decode(tmp_path: Path, monkeypatch) -> None:
+    projects = tmp_path / "projects"
+    project = projects / "invalid-config"
+    project.mkdir(parents=True)
+    source = tmp_path / "not-a-video.mp4"
+    source.write_bytes(b"not a decodable video")
+    config = tmp_path / "invalid.yaml"
+    config.write_text("scene_detection:\n  unknown_option: 1\n", encoding="utf-8")
+    monkeypatch.setattr(tool_module, "PROJECTS_DIR", projects)
+
+    result = ReplicationPreprocess().execute({
+        "operation": "run",
+        "project_id": "invalid-config",
+        "source_path": str(source),
+        "config_path": str(config),
+        "output_path": str(project / "artifacts" / "replication" / "index.json"),
+    })
+
+    assert result.success is False
+    assert "unknown_option" in (result.error or "")
+    assert "ffprobe" not in (result.error or "").lower()
+
+
+def test_run_reuses_stages_and_keeps_export_variants(
+    tmp_path: Path, monkeypatch
+) -> None:
+    pytest.importorskip("av")
+    pytest.importorskip("scenedetect")
+    pytest.importorskip("cv2")
+    projects = tmp_path / "projects"
+    project = projects / "stage-reuse"
+    project.mkdir(parents=True)
+    source = tmp_path / "source.mp4"
+    config_path = tmp_path / "replication.json"
+    index = project / "artifacts" / "replication" / "index.json"
+    _make_fixture(source)
+    _write_config(config_path)
+    monkeypatch.setattr(tool_module, "PROJECTS_DIR", projects)
+    tool = ReplicationPreprocess()
+    base = {
+        "project_id": "stage-reuse",
+        "source_path": str(source),
+        "config_path": str(config_path),
+        "output_path": str(index),
+    }
+
+    first = tool.execute({"operation": "run", **base})
+    request = json.loads(
+        (project / first.data["index"]["next_action"]["request_path"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    ready = tool.execute({
+        "operation": "run",
+        **base,
+        "parent_plan_revision": first.data["plan_revision"],
+        "review_submission": _submission(request),
+    })
+    assert ready.success is True, ready.error
+    assert ready.data["plan_revision"] == "r0002"
+    assert set(ready.data["executed_stages"]) >= {"review", "planning", "export"}
+    first_export = ready.data["export_report_path"]
+
+    config_payload = json.loads(config_path.read_text(encoding="utf-8"))
+    config_payload["export"]["crf"] = 22
+    config_path.write_text(json.dumps(config_payload), encoding="utf-8")
+    export_only = tool.execute({"operation": "run", **base})
+
+    assert export_only.success is True, export_only.error
+    assert export_only.data["plan_revision"] == "r0002"
+    assert export_only.data["executed_stages"] == ["export"]
+    assert set(export_only.data["reused_stages"]) >= {"analysis", "review", "planning"}
+    assert export_only.data["invalidated_stages"] == ["export"]
+    assert export_only.data["export_report_path"] != first_export
+    assert (project / first_export).is_file()
+    assert (project / export_only.data["export_report_path"]).is_file()
+
+    config_payload["regroup"] = {"max_atomic_segments": 2}
+    config_path.write_text(json.dumps(config_payload), encoding="utf-8")
+    regrouped = tool.execute({"operation": "run", **base})
+
+    assert regrouped.success is True, regrouped.error
+    assert regrouped.data["plan_revision"] == "r0003"
+    assert set(regrouped.data["executed_stages"]) >= {"planning", "export"}
+    assert set(regrouped.data["reused_stages"]) >= {"analysis", "review"}
+    assert regrouped.data["invalidated_stages"] == ["planning", "export"]
+
+    old_state = json.loads(
+        (
+            project / "artifacts" / "replication" / "revisions" / "r0003" / "plan_state.json"
+        ).read_text(encoding="utf-8")
+    )
+    config_payload["review"] = {"evidence_jpeg_quality": 91}
+    config_path.write_text(json.dumps(config_payload), encoding="utf-8")
+    review_changed = tool.execute({"operation": "run", **base})
+
+    assert review_changed.success is True, review_changed.error
+    assert review_changed.data["plan_revision"] == "r0004"
+    assert review_changed.data["plan_status"] == "needs_review"
+    assert review_changed.data["executed_stages"] == ["review"]
+    assert review_changed.data["reused_stages"] == ["analysis"]
+    assert review_changed.data["invalidated_stages"] == ["review", "planning", "export"]
+    new_state = json.loads(
+        (
+            project / "artifacts" / "replication" / "revisions" / "r0004" / "plan_state.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert [item["boundary_id"] for item in new_state["boundaries"]] == [
+        item["boundary_id"] for item in old_state["boundaries"]
+    ]
+
+    config_payload["scene_detection"]["initial_threshold"] = 25
+    config_path.write_text(json.dumps(config_payload), encoding="utf-8")
+    analysis_changed = tool.execute({"operation": "run", **base})
+
+    assert analysis_changed.success is True, analysis_changed.error
+    assert analysis_changed.data["plan_revision"] == "r0005"
+    assert "analysis" in analysis_changed.data["executed_stages"]
+    assert analysis_changed.data["reused_stages"] == []
+    assert analysis_changed.data["invalidated_stages"] == [
+        "analysis", "review", "planning", "export"
+    ]

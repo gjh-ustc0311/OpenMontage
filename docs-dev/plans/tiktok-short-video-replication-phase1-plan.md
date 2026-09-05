@@ -273,6 +273,10 @@ PyAV 17.1.0 支持仓库的 Python 3.10 下限；PySceneDetect 必须使用 head
 
 ## 12. 配置基线
 
+当前实现已经升级为严格的 v2 分层配置；包内基线、项目覆盖规则和阶段失效语义见
+[`docs/replication-preprocess-config.md`](../../docs/replication-preprocess-config.md)。下面的 v1
+片段仅保留为本设计初稿的历史记录。
+
 ```yaml
 config_revision: replication-preprocess-v1
 profile:

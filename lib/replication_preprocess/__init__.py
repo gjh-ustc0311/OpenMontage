@@ -7,10 +7,13 @@ relationships as ordinary, versioned input data.
 
 from .planner import build_generation_plan, build_scene_groups
 from .review import ReviewValidationError, apply_review_submission
+from .config import load_config, validate_config
 
 __all__ = [
     "ReviewValidationError",
     "apply_review_submission",
     "build_generation_plan",
     "build_scene_groups",
+    "load_config",
+    "validate_config",
 ]

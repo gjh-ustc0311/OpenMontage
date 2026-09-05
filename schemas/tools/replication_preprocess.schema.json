@@ -17,7 +17,10 @@
     "output_path": {"type": "string", "minLength": 1},
     "source_path": {"type": "string", "minLength": 1},
     "plan_path": {"type": ["string", "null"]},
-    "config_path": {"type": ["string", "null"]},
+    "config_path": {
+      "type": ["string", "null"],
+      "description": "Explicit YAML/JSON partial overlay for the package profile; no automatic discovery."
+    },
     "profile": {"type": "string", "default": "default-v1"},
     "parent_plan_revision": {
       "type": ["string", "null"],
@@ -35,7 +38,7 @@
         "type": "object",
         "additionalProperties": true,
         "required": [
-          "action", "actor", "reason", "parent_plan_revision", "config_fingerprint"
+          "action", "actor", "reason", "parent_plan_revision", "analysis_fingerprint"
         ],
         "properties": {
           "action": {
@@ -44,6 +47,7 @@
           "actor": {"type": "string", "minLength": 1},
           "reason": {"type": "string", "minLength": 1},
           "parent_plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+          "analysis_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
           "config_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
         }
       },

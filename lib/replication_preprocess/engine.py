@@ -28,6 +28,7 @@ from .analysis import (
     probe_source,
     select_boundaries,
 )
+from .config import compute_export_fingerprint, compute_plan_fingerprint
 from .models import load_config, stable_id, time_point
 from .planner import build_generation_plan, build_scene_groups
 from .review import (
@@ -106,7 +107,12 @@ class ReplicationEngine:
         if not isinstance(revision, str):
             return None
         state = self._load_state(revision)
-        return state if state.get("input_fingerprint") == fingerprint else None
+        if state.get("input_fingerprint") != fingerprint:
+            return None
+        state["executed_stages"] = []
+        state["reused_stages"] = ["analysis", "review", "planning"]
+        state["invalidated_stages"] = []
+        return state
 
     def _apply_topology_overrides(
         self,
@@ -138,7 +144,10 @@ class ReplicationEngine:
             if not source["start"]["pts"] < pts < source["end"]["pts"]:
                 raise ReplicationPreprocessError("Inserted boundary must be inside the source interval")
             boundary_id = stable_id(
-                "bnd", source["file_sha256"], pts, config["config_fingerprint"]
+                "bnd",
+                source["file_sha256"],
+                pts,
+                config["config_fingerprints"]["analysis"],
             )
             if any(item["time"]["pts"] == pts for item in result):
                 raise ReplicationPreprocessError("A boundary already exists at the inserted PTS")
@@ -245,9 +254,14 @@ class ReplicationEngine:
             boundary_metadata={item["boundary_id"]: item for item in pending},
             output_dir=evidence_dir,
             project_dir=self.project_dir,
+            review_config=config["review"],
         )
         overview_path = evidence_dir / "contact-sheet.jpg"
-        overview = build_overview_contact_sheet(boards, overview_path)
+        overview = build_overview_contact_sheet(
+            boards,
+            overview_path,
+            jpeg_quality=int(config["review"]["contact_sheet_jpeg_quality"]),
+        )
         items = []
         for boundary in pending:
             items.append({
@@ -267,6 +281,8 @@ class ReplicationEngine:
             source_sha256=source["file_sha256"],
             parent_plan_revision=revision,
             config_fingerprint=config["config_fingerprint"],
+            analysis_fingerprint=config["config_fingerprints"]["analysis"],
+            review_fingerprint=config["config_fingerprints"]["review"],
             protocol_version=config["review"]["protocol_version"],
             review_round=review_round,
             items=items,
@@ -430,7 +446,7 @@ class ReplicationEngine:
             shutil.rmtree(staging_dir, ignore_errors=True)
             raise
         index = {
-            "schema_version": "1.0",
+            "schema_version": "2.0",
             "tool": "replication_preprocess",
             "plan_status": state["plan_status"],
             "review_status": state["review_status"],
@@ -439,6 +455,9 @@ class ReplicationEngine:
             "parent_plan_revision": state.get("parent_plan_revision"),
             "source_sha256": state["source"]["file_sha256"],
             "config_fingerprint": state["config"]["config_fingerprint"],
+            "config_fingerprints": deepcopy(state["config"]["config_fingerprints"]),
+            "config_sources": deepcopy(state["config"]["config_sources"]),
+            "plan_fingerprint": state.get("plan_fingerprint"),
             "runtime_versions": state["runtime_versions"],
             "review_digest": state.get("review_digest", "none"),
             "manifest_index": manifest_index,
@@ -481,6 +500,10 @@ class ReplicationEngine:
         state: dict[str, Any],
         approved_drop_ids: set[str],
     ) -> None:
+        state["plan_fingerprint"] = compute_plan_fingerprint(
+            state["config"], state.get("review_digest", "none")
+        )
+        state["config"]["plan_fingerprint"] = state["plan_fingerprint"]
         pending = [item for item in state["boundaries"] if item["relationship"] == "pending_agent"]
         uncertain = [item for item in state["boundaries"] if item["relationship"] == "uncertain"]
         failed_keyframes = [
@@ -549,12 +572,8 @@ class ReplicationEngine:
         source_path = Path(str(inputs.get("source_path", ""))).expanduser().resolve()
         if not source_path.is_file():
             raise ReplicationPreprocessError("plan requires an existing source_path")
-        config = load_config(inputs.get("config_path"))
         requested_profile = inputs.get("profile", "default-v1")
-        if requested_profile != config["profile"]["name"]:
-            raise ReplicationPreprocessError(
-                f"Unknown or mismatched replication profile: {requested_profile}"
-            )
+        config = load_config(inputs.get("config_path"), profile=requested_profile)
         runtime_versions = collect_runtime_versions()
         parent_revision = inputs.get("parent_plan_revision")
         review_submission = inputs.get("review_submission")
@@ -575,9 +594,12 @@ class ReplicationEngine:
                 raise ReplicationPreprocessError(
                     "Manual override parent_plan_revision does not match the request"
                 )
-            if item.get("config_fingerprint") != config["config_fingerprint"]:
+            expected_analysis = config["config_fingerprints"]["analysis"]
+            supplied_analysis = item.get("analysis_fingerprint")
+            legacy_config = item.get("config_fingerprint")
+            if supplied_analysis != expected_analysis and legacy_config != config["config_fingerprint"]:
                 raise ReplicationPreprocessError(
-                    "Manual override config_fingerprint does not match the active configuration"
+                    "Manual override analysis_fingerprint does not match the active configuration"
                 )
         topology_change = any(
             item.get("action") in {"insert_boundary", "remove_boundary"}
@@ -598,8 +620,17 @@ class ReplicationEngine:
         if parent is not None:
             if parent["source"]["file_sha256"] != source_digest:
                 raise ReplicationPreprocessError("Source file does not match parent revision")
-            if parent["config"]["config_fingerprint"] != config["config_fingerprint"]:
-                raise ReplicationPreprocessError("Configuration does not match parent revision")
+            parent_analysis = parent.get("config", {}).get("config_fingerprints", {}).get("analysis")
+            if parent_analysis != config["config_fingerprints"]["analysis"]:
+                raise ReplicationPreprocessError("Analysis configuration does not match parent revision")
+            if (
+                review_submission is not None
+                and parent.get("config", {}).get("config_fingerprints", {}).get("review")
+                != config["config_fingerprints"]["review"]
+            ):
+                raise ReplicationPreprocessError(
+                    "Review configuration changed; run without a submission to regenerate evidence"
+                )
             if parent.get("runtime_versions") != runtime_versions:
                 raise ReplicationPreprocessError(
                     "Media runtime versions do not match parent revision; create a fresh plan"
@@ -635,10 +666,14 @@ class ReplicationEngine:
                 "plan_revision": revision,
                 "parent_plan_revision": parent_revision,
                 "input_fingerprint": input_fingerprint,
+                "config": config,
                 "review_request": None,
                 "review_submission": None,
                 "contact_sheet_path": None,
                 "next_action": None,
+                "executed_stages": ["review", "planning"],
+                "reused_stages": ["analysis"],
+                "invalidated_stages": ["review", "planning", "export"],
             })
             request_path = self._revision_dir(str(parent_revision)) / "boundary_review_request.json"
             if review_submission is not None:
@@ -699,7 +734,10 @@ class ReplicationEngine:
         else:
             source, ledger, time_base = probe_source(source_path)
             qualities = analyze_frame_quality(
-                source_path, time_base, int(config["keyframe"]["analysis_width_px"])
+                source_path,
+                time_base,
+                int(config["keyframe"]["analysis_width_px"]),
+                config,
             )
             candidates = detect_scene_candidates(
                 source_path,
@@ -729,10 +767,14 @@ class ReplicationEngine:
                 segments=segments,
                 output_dir=keyframe_dir,
                 project_dir=self.project_dir,
+                jpeg_quality=int(config["review"]["keyframe_jpeg_quality"]),
             ))
             keyframe_sheet_path = keyframe_dir.parent / "keyframe-contact-sheet.jpg"
             keyframe_sheet = build_keyframe_contact_sheet(
-                segments, keyframe_sheet_path, self.project_dir
+                segments,
+                keyframe_sheet_path,
+                self.project_dir,
+                jpeg_quality=int(config["review"]["contact_sheet_jpeg_quality"]),
             )
             if keyframe_sheet:
                 extra_artifacts.append(keyframe_sheet)
@@ -746,7 +788,7 @@ class ReplicationEngine:
                 if item.get("keyframe", {}).get("quality_status") == "failed"
             }
             state = {
-                "schema_version": "1.0",
+                "schema_version": "2.0",
                 "project_id": inputs["project_id"],
                 "plan_revision": revision,
                 "parent_plan_revision": parent_revision,
@@ -754,6 +796,9 @@ class ReplicationEngine:
                 "source": source,
                 "config": config,
                 "runtime_versions": runtime_versions,
+                "executed_stages": ["analysis", "review", "planning"],
+                "reused_stages": [],
+                "invalidated_stages": ["analysis", "review", "planning", "export"],
                 "boundaries": boundaries,
                 "suppressed_candidates": suppressed,
                 "atomic_segments": segments,
@@ -807,6 +852,279 @@ class ReplicationEngine:
                 state["review_status"] = "accepted"
         return self._write_revision(state, extra_artifacts)
 
+    def _current_v2_state(self) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """Return the canonical v2 state; v1 artifacts remain immutable and ignored."""
+
+        if not self.index_path.is_file():
+            return None
+        index = self._load_json(self.index_path)
+        revision = index.get("plan_revision")
+        if not isinstance(revision, str):
+            return None
+        state = self._load_state(revision)
+        fingerprints = state.get("config", {}).get("config_fingerprints")
+        if state.get("schema_version") != "2.0" or not isinstance(fingerprints, dict):
+            return None
+        self._assert_index_integrity(index)
+        return index, state
+
+    def _auto_review_revision(
+        self,
+        *,
+        current: dict[str, Any],
+        config: dict[str, Any],
+        runtime_versions: dict[str, str],
+        source_path: Path,
+    ) -> dict[str, Any]:
+        """Reuse boundaries/keyframe choices while regenerating review evidence."""
+
+        source, ledger, time_base = probe_source(source_path)
+        revision = next_revision(self.revisions_dir)
+        state = deepcopy(current)
+        for boundary in state["boundaries"]:
+            if (
+                boundary.get("boundary_type") == "scenedetect"
+                and boundary.get("relationship") != "auto_separator"
+                and not boundary.get("manual_override")
+            ):
+                boundary["relationship"] = "pending_agent"
+                boundary["hard"] = None
+                boundary["hard_reason"] = None
+                boundary.pop("review", None)
+        state.update({
+            "schema_version": "2.0",
+            "plan_revision": revision,
+            "parent_plan_revision": current["plan_revision"],
+            "source": source,
+            "config": config,
+            "runtime_versions": runtime_versions,
+            "review_digest": "none",
+            "review_request": None,
+            "review_submission": None,
+            "contact_sheet_path": None,
+            "next_action": None,
+            "review_status": "not_required",
+            "generation_clips": [],
+            "scene_groups": [],
+            "dropped_intervals": [],
+            "timeline_map": [],
+            "executed_stages": ["review"],
+            "reused_stages": ["analysis"],
+            "invalidated_stages": ["review", "planning", "export"],
+        })
+        state["input_fingerprint"] = sha256_json({
+            "source_sha256": source["file_sha256"],
+            "config_fingerprint": config["config_fingerprint"],
+            "auto_reuse": "review",
+            "parent_plan_revision": current["plan_revision"],
+            "runtime_versions": runtime_versions,
+        })
+        artifacts: list[str] = []
+        keyframe_dir = self.image_root / "revisions" / revision / "keyframes"
+        artifacts.extend(extract_keyframe_images(
+            path=source_path,
+            time_base=time_base,
+            rotation=int(source.get("rotation") or 0),
+            segments=state["atomic_segments"],
+            output_dir=keyframe_dir,
+            project_dir=self.project_dir,
+            jpeg_quality=int(config["review"]["keyframe_jpeg_quality"]),
+        ))
+        keyframe_sheet_path = keyframe_dir.parent / "keyframe-contact-sheet.jpg"
+        keyframe_sheet = build_keyframe_contact_sheet(
+            state["atomic_segments"],
+            keyframe_sheet_path,
+            self.project_dir,
+            jpeg_quality=int(config["review"]["contact_sheet_jpeg_quality"]),
+        )
+        if keyframe_sheet:
+            artifacts.append(keyframe_sheet)
+            state["contact_sheet_path"] = self._relative(keyframe_sheet_path)
+        pending = [
+            item for item in state["boundaries"]
+            if item.get("relationship") == "pending_agent"
+        ]
+        failed = {
+            item["segment_id"]
+            for item in state["atomic_segments"]
+            if item.get("keyframe", {}).get("quality_status") == "failed"
+        }
+        if pending and not failed:
+            request, review_artifacts, contact_sheet = self._build_review_artifacts(
+                source_path=source_path,
+                source=source,
+                ledger=ledger,
+                time_base=time_base,
+                segments=state["atomic_segments"],
+                pending=pending,
+                config=config,
+                revision=revision,
+                review_round=1,
+            )
+            state["review_request"] = request
+            state["review_status"] = "pending_agent"
+            state["contact_sheet_path"] = contact_sheet
+            state["next_action"] = {
+                "type": "agent_boundary_review",
+                "skill": "skills/meta/replication-boundary-review.md",
+                "request_path": (
+                    f"artifacts/replication/revisions/{revision}/"
+                    "boundary_review_request.json"
+                ),
+            }
+            artifacts.extend(review_artifacts)
+        elif failed:
+            state["review_status"] = "needs_human"
+            state["next_action"] = {
+                "type": "human_plan_review",
+                "reason": "keyframe_unavailable",
+                "affected_segment_ids": sorted(failed),
+            }
+        self._finish_state(state, set())
+        if state["plan_status"] == "ready":
+            state["executed_stages"].append("planning")
+        return self._write_revision(state, artifacts)
+
+    def _auto_planning_revision(
+        self,
+        *,
+        current: dict[str, Any],
+        config: dict[str, Any],
+        runtime_versions: dict[str, str],
+    ) -> dict[str, Any]:
+        """Reuse accepted analysis/review results and rebuild only the clip DAG."""
+
+        revision = next_revision(self.revisions_dir)
+        state = deepcopy(current)
+        state.update({
+            "schema_version": "2.0",
+            "plan_revision": revision,
+            "parent_plan_revision": current["plan_revision"],
+            "config": config,
+            "runtime_versions": runtime_versions,
+            "review_request": None,
+            "review_submission": None,
+            "next_action": None,
+            "executed_stages": ["planning"],
+            "reused_stages": ["analysis", "review"],
+            "invalidated_stages": ["planning", "export"],
+        })
+        state["input_fingerprint"] = sha256_json({
+            "source_sha256": state["source"]["file_sha256"],
+            "config_fingerprint": config["config_fingerprint"],
+            "auto_reuse": "planning",
+            "parent_plan_revision": current["plan_revision"],
+            "runtime_versions": runtime_versions,
+        })
+        request_path = (
+            self._revision_dir(current["plan_revision"]) / "boundary_review_request.json"
+        )
+        if current.get("review_status") in {"pending_agent", "needs_more_evidence"}:
+            if not request_path.is_file():
+                raise ReplicationPreprocessError(
+                    "Current pending review has no boundary review request"
+                )
+            previous_request = self._load_json(request_path)
+            request = build_review_request(
+                source_sha256=state["source"]["file_sha256"],
+                parent_plan_revision=revision,
+                config_fingerprint=config["config_fingerprint"],
+                analysis_fingerprint=config["config_fingerprints"]["analysis"],
+                review_fingerprint=config["config_fingerprints"]["review"],
+                protocol_version=config["review"]["protocol_version"],
+                review_round=int(previous_request["review_round"]),
+                items=deepcopy(previous_request["items"]),
+            )
+            state["review_request"] = request
+            state["next_action"] = {
+                "type": "agent_boundary_review",
+                "skill": "skills/meta/replication-boundary-review.md",
+                "request_path": (
+                    f"artifacts/replication/revisions/{revision}/"
+                    "boundary_review_request.json"
+                ),
+            }
+        approved_drops = {
+            item["segment_id"] for item in current.get("dropped_intervals", [])
+        }
+        self._finish_state(state, approved_drops)
+        return self._write_revision(state, [])
+
+    def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Execute with stage-local invalidation and automatic upstream reuse."""
+
+        source_path = Path(str(inputs.get("source_path", ""))).expanduser().resolve()
+        if not source_path.is_file():
+            raise ReplicationPreprocessError("run requires an existing source_path")
+        requested_profile = inputs.get("profile", "default-v1")
+        config = load_config(inputs.get("config_path"), profile=requested_profile)
+
+        explicit_continuation = bool(
+            inputs.get("parent_plan_revision")
+            or inputs.get("review_submission") is not None
+            or inputs.get("manual_overrides")
+        )
+        plan_result: dict[str, Any]
+        if explicit_continuation:
+            plan_result = self.plan(inputs)
+        else:
+            current_pair = self._current_v2_state()
+            current = current_pair[1] if current_pair else None
+            runtime_versions = collect_runtime_versions()
+            source_digest = sha256_file(source_path)
+            if (
+                current is None
+                or current["source"]["file_sha256"] != source_digest
+                or current.get("runtime_versions") != runtime_versions
+            ):
+                plan_result = self.plan(inputs)
+            else:
+                old = current["config"]["config_fingerprints"]
+                new = config["config_fingerprints"]
+                if old["analysis"] != new["analysis"]:
+                    plan_result = self.plan(inputs)
+                elif old["review"] != new["review"]:
+                    plan_result = self._auto_review_revision(
+                        current=current,
+                        config=config,
+                        runtime_versions=runtime_versions,
+                        source_path=source_path,
+                    )
+                elif old["planning"] != new["planning"]:
+                    plan_result = self._auto_planning_revision(
+                        current=current,
+                        config=config,
+                        runtime_versions=runtime_versions,
+                    )
+                else:
+                    plan_result = deepcopy(current)
+                    plan_result["config"] = config
+                    plan_result["executed_stages"] = []
+                    plan_result["reused_stages"] = ["analysis", "review", "planning"]
+                    plan_result["invalidated_stages"] = (
+                        ["export"] if old["export"] != new["export"] else []
+                    )
+                    plan_result["artifacts"] = [str(self.index_path)]
+                    plan_result["index"] = current_pair[0]
+
+        if plan_result["plan_status"] != "ready":
+            return plan_result
+        plan_executed = list(plan_result.get("executed_stages", []))
+        plan_reused = list(plan_result.get("reused_stages", []))
+        invalidated = list(plan_result.get("invalidated_stages", []))
+        exported = self.export(inputs, config=config)
+        exported["executed_stages"] = list(dict.fromkeys(
+            [*plan_executed, *exported.get("executed_stages", [])]
+        ))
+        exported["reused_stages"] = list(dict.fromkeys(
+            [*plan_reused, *exported.get("reused_stages", [])]
+        ))
+        exported["invalidated_stages"] = invalidated
+        validation = self.validate(inputs)
+        exported["validation_status"] = validation["validation_status"]
+        exported["issues"] = validation["issues"]
+        return exported
+
     def _load_current(self, plan_path: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         path = Path(plan_path).resolve() if plan_path else self.index_path
         index = self._load_json(path)
@@ -828,28 +1146,58 @@ class ReplicationEngine:
                     f"Manifest is missing or unsafe: {name}"
                 ) from exc
 
-    def export(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    def export(
+        self,
+        inputs: dict[str, Any],
+        *,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         index, state = self._load_current(inputs.get("plan_path"))
         self._assert_index_integrity(index)
         self._validate_plan_state(state)
         if state.get("plan_status") != "ready":
             raise ReplicationPreprocessError("Only a ready plan can be exported")
-        existing_export = index.get("export")
-        if existing_export and existing_export.get("status") == "validated":
-            report_path = resolve_under(
-                self.project_dir / existing_export["report_path"],
-                self.project_dir,
-                must_exist=True,
+        if config is None and inputs.get("config_path"):
+            config = load_config(
+                inputs.get("config_path"), profile=inputs.get("profile", "default-v1")
             )
-            if sha256_file(report_path) != existing_export.get("report_sha256"):
-                raise ReplicationPreprocessError("Existing export report hash mismatch")
+        effective_config = config or state["config"]
+        if config is not None:
+            state_fingerprints = state["config"]["config_fingerprints"]
+            for stage in ("analysis", "review", "planning"):
+                if state_fingerprints[stage] != config["config_fingerprints"][stage]:
+                    raise ReplicationPreprocessError(
+                        f"{stage} configuration changed; run the workflow before exporting"
+                    )
+        plan_fingerprint = state.get("plan_fingerprint") or compute_plan_fingerprint(
+            state["config"], state.get("review_digest", "none")
+        )
+        export_fingerprint = compute_export_fingerprint(
+            effective_config, plan_fingerprint
+        )
+        variant = export_fingerprint[:16]
+        output_dir = self.video_root / "clips" / state["plan_revision"] / variant
+        report_dir = self.artifact_root / "exports" / state["plan_revision"] / variant
+        report_path = report_dir / "export_report.json"
+        if report_path.is_file():
             report = self._load_json(report_path)
+            if report.get("export_fingerprint") != export_fingerprint:
+                raise ReplicationPreprocessError("Existing export fingerprint mismatch")
             for item in report.get("clips", []):
                 clip_path = resolve_under(
                     self.project_dir / item["path"], self.project_dir, must_exist=True
                 )
                 if sha256_file(clip_path) != item.get("sha256"):
                     raise ReplicationPreprocessError("Existing exported clip hash mismatch")
+            index["export"] = {
+                "status": "validated",
+                "export_fingerprint": export_fingerprint,
+                "export_config_fingerprint": effective_config["config_fingerprints"]["export"],
+                "config_sources": deepcopy(effective_config["config_sources"]),
+                "report_path": self._relative(report_path),
+                "report_sha256": sha256_file(report_path),
+            }
+            atomic_write_json(self.index_path, index)
             return {
                 "plan_status": "ready",
                 "review_status": state["review_status"],
@@ -857,6 +1205,12 @@ class ReplicationEngine:
                 "export_status": "validated",
                 "clip_paths": [item["path"] for item in report.get("clips", [])],
                 "export_report_path": self._relative(report_path),
+                "export_fingerprint": export_fingerprint,
+                "config_fingerprints": deepcopy(effective_config["config_fingerprints"]),
+                "config_sources": deepcopy(effective_config["config_sources"]),
+                "executed_stages": [],
+                "reused_stages": ["export"],
+                "invalidated_stages": [],
                 "artifacts": [
                     str(report_path),
                     *[str(self.project_dir / item["path"]) for item in report.get("clips", [])],
@@ -867,9 +1221,8 @@ class ReplicationEngine:
         source_path = Path(state["source"]["path"])
         if sha256_file(source_path) != state["source"]["file_sha256"]:
             raise ReplicationPreprocessError("Source file changed after planning")
-        output_dir = self.video_root / "clips" / state["plan_revision"]
         output_dir.mkdir(parents=True, exist_ok=True)
-        export_config = state["config"]["export"]
+        export_config = effective_config["export"]
         reports: list[dict[str, Any]] = []
         artifacts: list[str] = []
         created: list[Path] = []
@@ -958,18 +1311,23 @@ class ReplicationEngine:
                 path.unlink(missing_ok=True)
             raise
         export_report = {
-            "schema_version": "1.0",
+            "schema_version": "2.0",
             "plan_revision": state["plan_revision"],
+            "plan_fingerprint": plan_fingerprint,
+            "export_fingerprint": export_fingerprint,
+            "export_config_fingerprint": effective_config["config_fingerprints"]["export"],
+            "config_sources": deepcopy(effective_config["config_sources"]),
             "status": "validated",
             "encoding": deepcopy(export_config),
             "clips": reports,
         }
-        report_dir = self.artifact_root / "exports" / state["plan_revision"]
-        report_path = report_dir / "export_report.json"
         atomic_write_json(report_path, export_report)
         artifacts.append(str(report_path))
         index["export"] = {
             "status": "validated",
+            "export_fingerprint": export_fingerprint,
+            "export_config_fingerprint": effective_config["config_fingerprints"]["export"],
+            "config_sources": deepcopy(effective_config["config_sources"]),
             "report_path": self._relative(report_path),
             "report_sha256": sha256_file(report_path),
         }
@@ -982,6 +1340,12 @@ class ReplicationEngine:
             "export_status": "validated",
             "clip_paths": [item["path"] for item in reports],
             "export_report_path": self._relative(report_path),
+            "export_fingerprint": export_fingerprint,
+            "config_fingerprints": deepcopy(effective_config["config_fingerprints"]),
+            "config_sources": deepcopy(effective_config["config_sources"]),
+            "executed_stages": ["export"],
+            "reused_stages": [],
+            "invalidated_stages": [],
             "artifacts": artifacts,
             "index": index,
         }
@@ -1037,6 +1401,17 @@ class ReplicationEngine:
             "plan_status": state["plan_status"],
             "review_status": state["review_status"],
             "plan_revision": state["plan_revision"],
+            "plan_fingerprint": state.get("plan_fingerprint"),
+            "export_fingerprint": (index.get("export") or {}).get("export_fingerprint"),
+            "config_fingerprints": deepcopy(
+                state.get("config", {}).get("config_fingerprints", {})
+            ),
+            "config_sources": deepcopy(
+                state.get("config", {}).get("config_sources", [])
+            ),
+            "executed_stages": [],
+            "reused_stages": ["analysis", "review", "planning"],
+            "invalidated_stages": [],
             "validation_status": "passed" if not issues else "failed",
             "issues": issues,
             "artifacts": [str(self.index_path)],

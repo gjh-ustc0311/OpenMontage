@@ -10,6 +10,8 @@
     "source_sha256",
     "parent_plan_revision",
     "config_fingerprint",
+    "analysis_fingerprint",
+    "review_fingerprint",
     "review_protocol_version",
     "review_round",
     "allowed_relationships",
@@ -18,10 +20,12 @@
   ],
   "properties": {
     "request_id": {"type": "string", "pattern": "^brq_[a-f0-9]{16}$"},
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"const": "2.0"},
     "source_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "parent_plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
     "config_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "analysis_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "review_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "review_protocol_version": {"const": "boundary-visual-review-v1"},
     "review_round": {"type": "integer", "minimum": 1, "maximum": 2},
     "allowed_relationships": {

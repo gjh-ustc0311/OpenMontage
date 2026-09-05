@@ -23,6 +23,7 @@ setup(
         ],
     },
     package_data={
+        "lib.replication_preprocess": ["profiles/*.yaml"],
         "schemas.replication": ["*.json"],
         "schemas.tools": ["replication_preprocess.schema.json"],
     },

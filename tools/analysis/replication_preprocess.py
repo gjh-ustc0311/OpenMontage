@@ -29,7 +29,7 @@ class ReplicationPreprocess(BaseTool):
     """Build exact, reviewable generation clips without embedded AI models."""
 
     name = "replication_preprocess"
-    version = "0.1.0"
+    version = "0.2.0"
     tier = ToolTier.ANALYZE
     capability = "analysis"
     provider = "openmontage"
@@ -105,7 +105,13 @@ class ReplicationPreprocess(BaseTool):
             "output_path": {"type": "string", "minLength": 1},
             "source_path": {"type": "string", "minLength": 1},
             "plan_path": {"type": ["string", "null"]},
-            "config_path": {"type": ["string", "null"]},
+            "config_path": {
+                "type": ["string", "null"],
+                "description": (
+                    "Explicit YAML/JSON partial overlay for the selected package profile; "
+                    "no automatic project config discovery is performed."
+                ),
+            },
             "profile": {"type": "string", "default": "default-v1"},
             "parent_plan_revision": {
                 "type": ["string", "null"],
@@ -120,7 +126,7 @@ class ReplicationPreprocess(BaseTool):
                     "type": "object",
                     "required": [
                         "action", "actor", "reason", "parent_plan_revision",
-                        "config_fingerprint",
+                        "analysis_fingerprint",
                     ],
                     "properties": {
                         "action": {
@@ -133,6 +139,9 @@ class ReplicationPreprocess(BaseTool):
                         "reason": {"type": "string", "minLength": 1},
                         "parent_plan_revision": {
                             "type": "string", "pattern": "^r[0-9]{4}$"
+                        },
+                        "analysis_fingerprint": {
+                            "type": "string", "pattern": "^[a-f0-9]{64}$"
                         },
                         "config_fingerprint": {
                             "type": "string", "pattern": "^[a-f0-9]{64}$"
@@ -161,6 +170,13 @@ class ReplicationPreprocess(BaseTool):
             "index_path": {"type": "string"},
             "contact_sheet_path": {"type": ["string", "null"]},
             "clip_paths": {"type": "array", "items": {"type": "string"}},
+            "executed_stages": {"type": "array", "items": {"type": "string"}},
+            "reused_stages": {"type": "array", "items": {"type": "string"}},
+            "invalidated_stages": {"type": "array", "items": {"type": "string"}},
+            "config_fingerprints": {"type": "object"},
+            "config_sources": {"type": "array", "items": {"type": "object"}},
+            "export_fingerprint": {"type": ["string", "null"]},
+            "plan_fingerprint": {"type": ["string", "null"]},
         },
     }
 
@@ -191,15 +207,20 @@ class ReplicationPreprocess(BaseTool):
             elif operation == "validate":
                 data = engine.validate(inputs)
             else:
-                data = engine.plan(inputs)
-                if data["plan_status"] == "ready":
-                    data = engine.export({**inputs, "plan_path": str(supplied_output)})
-                    validation = engine.validate({**inputs, "plan_path": str(supplied_output)})
-                    data["validation_status"] = validation["validation_status"]
-                    data["issues"] = validation["issues"]
+                data = engine.run(inputs)
             data.setdefault("index_path", engine._relative(supplied_output))
             data.setdefault("contact_sheet_path", data.get("index", {}).get("contact_sheet_path"))
             data.setdefault("clip_paths", [])
+            data.setdefault(
+                "config_fingerprints",
+                data.get("config", {}).get("config_fingerprints", {}),
+            )
+            data.setdefault(
+                "config_sources", data.get("config", {}).get("config_sources", [])
+            )
+            data.setdefault("executed_stages", [])
+            data.setdefault("reused_stages", [])
+            data.setdefault("invalidated_stages", [])
             artifacts = list(dict.fromkeys(data.pop("artifacts", [str(supplied_output)])))
             return ToolResult(
                 success=data.get("validation_status") != "failed",

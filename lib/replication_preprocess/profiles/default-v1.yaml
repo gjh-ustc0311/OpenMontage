@@ -1,0 +1,68 @@
+schema_version: "2.0"
+config_revision: replication-preprocess-v2
+
+profile:
+  name: default-v1
+  min_duration_s: "3.2"
+  max_duration_s: "15.0"
+  max_exclusive: true
+  forced_split_target_max_s: "14.8"
+  forced_split_search_start_s: "8.0"
+  forced_split_search_end_s: "12.0"
+
+scene_detection:
+  backend: pyav
+  initial_threshold: 50
+  threshold_step: 5
+  minimum_threshold: 20
+  min_scene_len_frames: 12
+  separator_min_duration_s: "0.08"
+  separator_context_s: "0.5"
+  separator_solid_ratio: "0.98"
+
+keyframe:
+  analysis_width_px: 320
+  search_window_s: "1.0"
+  search_window_ratio: "0.30"
+  laplacian_min: 80
+  luma_min: 16
+  luma_max: 239
+  black_pixel_luma_max: 16
+  white_pixel_luma_min: 239
+  black_ratio_max: "0.95"
+  white_ratio_max: "0.95"
+  stability_delta_max: "0.12"
+  sharpness_normalizer_multiplier: "2.0"
+  quality_score_weights:
+    sharpness: "0.40"
+    exposure: "0.25"
+    stability: "0.20"
+    proximity: "0.15"
+
+review:
+  protocol_version: boundary-visual-review-v1
+  max_agent_rounds: 2
+  context_offset_s: "0.5"
+  expanded_context_offset_s: "1.5"
+  background_mask_width_ratio: "0.50"
+  background_mask_top_ratio: "0.15"
+  background_mask_bottom_ratio: "0.95"
+  keyframe_jpeg_quality: 94
+  evidence_jpeg_quality: 92
+  contact_sheet_jpeg_quality: 90
+
+regroup:
+  max_atomic_segments: 3
+  allow_merge_two_normal_segments: false
+  allow_cross_hard_boundary: false
+  allow_drop_under_1s: false
+  drop_threshold_s: "1.0"
+
+export:
+  video_codec: libx264
+  crf: 18
+  preset: medium
+  pixel_format: yuv420p
+  audio_codec: aac
+  audio_bitrate: 192k
+

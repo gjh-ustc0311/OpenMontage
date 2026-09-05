@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/replication_preprocess_config.schema.json",
+  "title": "Replication Preprocess Configuration v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "config_revision", "profile", "scene_detection", "keyframe", "review", "regroup", "export"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "config_revision": {"const": "replication-preprocess-v2"},
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "min_duration_s", "max_duration_s", "max_exclusive", "forced_split_target_max_s", "forced_split_search_start_s", "forced_split_search_end_s"],
+      "properties": {
+        "name": {"const": "default-v1"},
+        "min_duration_s": {"type": "string"}, "max_duration_s": {"type": "string"},
+        "max_exclusive": {"const": true},
+        "forced_split_target_max_s": {"type": "string"},
+        "forced_split_search_start_s": {"type": "string"},
+        "forced_split_search_end_s": {"type": "string"}
+      }
+    },
+    "scene_detection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["backend", "initial_threshold", "threshold_step", "minimum_threshold", "min_scene_len_frames", "separator_min_duration_s", "separator_context_s", "separator_solid_ratio"],
+      "properties": {
+        "backend": {"const": "pyav"},
+        "initial_threshold": {"type": "integer", "minimum": 1, "maximum": 255},
+        "threshold_step": {"type": "integer", "minimum": 1, "maximum": 255},
+        "minimum_threshold": {"type": "integer", "minimum": 1, "maximum": 255},
+        "min_scene_len_frames": {"type": "integer", "minimum": 1},
+        "separator_min_duration_s": {"type": "string"},
+        "separator_context_s": {"type": "string"},
+        "separator_solid_ratio": {"type": "string"}
+      }
+    },
+    "keyframe": {
+      "type": "object", "additionalProperties": false,
+      "required": ["analysis_width_px", "search_window_s", "search_window_ratio", "laplacian_min", "luma_min", "luma_max", "black_pixel_luma_max", "white_pixel_luma_min", "black_ratio_max", "white_ratio_max", "stability_delta_max", "sharpness_normalizer_multiplier", "quality_score_weights"],
+      "properties": {
+        "analysis_width_px": {"type": "integer", "minimum": 32},
+        "search_window_s": {"type": "string"}, "search_window_ratio": {"type": "string"},
+        "laplacian_min": {"type": "integer", "minimum": 0},
+        "luma_min": {"type": "integer", "minimum": 0, "maximum": 255},
+        "luma_max": {"type": "integer", "minimum": 0, "maximum": 255},
+        "black_pixel_luma_max": {"type": "integer", "minimum": 0, "maximum": 255},
+        "white_pixel_luma_min": {"type": "integer", "minimum": 0, "maximum": 255},
+        "black_ratio_max": {"type": "string"}, "white_ratio_max": {"type": "string"},
+        "stability_delta_max": {"type": "string"}, "sharpness_normalizer_multiplier": {"type": "string"},
+        "quality_score_weights": {
+          "type": "object", "additionalProperties": false,
+          "required": ["sharpness", "exposure", "stability", "proximity"],
+          "properties": {
+            "sharpness": {"type": "string"}, "exposure": {"type": "string"},
+            "stability": {"type": "string"}, "proximity": {"type": "string"}
+          }
+        }
+      }
+    },
+    "review": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocol_version", "max_agent_rounds", "context_offset_s", "expanded_context_offset_s", "background_mask_width_ratio", "background_mask_top_ratio", "background_mask_bottom_ratio", "keyframe_jpeg_quality", "evidence_jpeg_quality", "contact_sheet_jpeg_quality"],
+      "properties": {
+        "protocol_version": {"const": "boundary-visual-review-v1"}, "max_agent_rounds": {"const": 2},
+        "context_offset_s": {"type": "string"}, "expanded_context_offset_s": {"type": "string"},
+        "background_mask_width_ratio": {"type": "string"}, "background_mask_top_ratio": {"type": "string"}, "background_mask_bottom_ratio": {"type": "string"},
+        "keyframe_jpeg_quality": {"type": "integer", "minimum": 1, "maximum": 100},
+        "evidence_jpeg_quality": {"type": "integer", "minimum": 1, "maximum": 100},
+        "contact_sheet_jpeg_quality": {"type": "integer", "minimum": 1, "maximum": 100}
+      }
+    },
+    "regroup": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_atomic_segments", "allow_merge_two_normal_segments", "allow_cross_hard_boundary", "allow_drop_under_1s", "drop_threshold_s"],
+      "properties": {
+        "max_atomic_segments": {"type": "integer", "minimum": 1, "maximum": 3},
+        "allow_merge_two_normal_segments": {"const": false}, "allow_cross_hard_boundary": {"const": false},
+        "allow_drop_under_1s": {"type": "boolean"}, "drop_threshold_s": {"type": "string"}
+      }
+    },
+    "export": {
+      "type": "object", "additionalProperties": false,
+      "required": ["video_codec", "crf", "preset", "pixel_format", "audio_codec", "audio_bitrate"],
+      "properties": {
+        "video_codec": {"const": "libx264"}, "crf": {"type": "integer", "minimum": 0, "maximum": 51},
+        "preset": {"enum": ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]},
+        "pixel_format": {"const": "yuv420p"}, "audio_codec": {"const": "aac"},
+        "audio_bitrate": {"type": "string", "pattern": "^[1-9][0-9]*k$"}
+      }
+    }
+  }
+}

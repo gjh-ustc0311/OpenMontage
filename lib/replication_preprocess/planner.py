@@ -8,6 +8,7 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import Any, Iterable
 
+from .config import compute_plan_fingerprint
 from .models import decimal_string, fraction_from_time_base, stable_id
 
 
@@ -88,6 +89,9 @@ def build_generation_plan(
     maximum = Fraction(str(profile["max_duration_s"]))
     drop_max = Fraction(str(regroup["drop_threshold_s"]))
     max_members = int(regroup["max_atomic_segments"])
+    plan_fingerprint = config.get("plan_fingerprint") or compute_plan_fingerprint(
+        config, review_digest
+    )
     boundary_by_pair = {
         (item.get("left_segment_id"), item.get("right_segment_id")): item
         for item in boundaries
@@ -158,8 +162,7 @@ def build_generation_plan(
                 source_hash,
                 members[0]["segment_id"],
                 members[-1]["segment_id"],
-                config["config_fingerprint"],
-                review_digest,
+                plan_fingerprint,
             )
             clip_time_base = fraction_from_time_base(members[0]["start"]["time_base"])
             clip_keyframes: list[dict[str, Any]] = []
