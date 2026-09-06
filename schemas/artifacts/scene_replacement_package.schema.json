@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/scene_replacement_package",
+  "title": "Scene Replacement Package Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "project_id",
+    "replacement_revision",
+    "status",
+    "current_index_ref",
+    "source_snapshot_ref",
+    "counts",
+    "scenes",
+    "blockers",
+    "global_comparison_ref",
+    "global_review_id",
+    "global_human_approved"
+  ],
+  "properties": {
+    "version": {"enum": ["2.0", "2.1"]},
+    "project_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "replacement_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "status": {
+      "type": "string",
+      "enum": ["in_progress", "awaiting_human", "awaiting_global_approval", "ready", "blocked"]
+    },
+    "current_index_ref": {"$ref": "#/$defs/reference"},
+    "source_snapshot_ref": {"$ref": "#/$defs/reference"},
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenes_total", "scenes_approved", "anchors_total", "anchors_adopted"],
+      "properties": {
+        "scenes_total": {"type": "integer", "minimum": 0},
+        "scenes_approved": {"type": "integer", "minimum": 0},
+        "anchors_total": {"type": "integer", "minimum": 0},
+        "anchors_adopted": {"type": "integer", "minimum": 0}
+      }
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scene_id", "status", "anchor_ids", "group_human_approved"],
+        "properties": {
+          "scene_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "status": {
+            "type": "string",
+            "enum": [
+              "needs_analysis",
+              "awaiting_direction",
+              "awaiting_generation",
+              "needs_rework",
+              "awaiting_sample",
+              "needs_difficult_view",
+              "expanding",
+              "awaiting_group_evidence",
+              "awaiting_group_approval",
+              "ready",
+              "blocked"
+            ]
+          },
+          "anchor_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+              "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}
+          },
+          "group_human_approved": {"type": "boolean"}
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "global_comparison_ref": {
+      "oneOf": [{"$ref": "#/$defs/reference"}, {"type": "null"}]
+    },
+    "global_review_id": {
+      "oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]
+    },
+    "global_human_approved": {"type": "boolean"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+        },
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

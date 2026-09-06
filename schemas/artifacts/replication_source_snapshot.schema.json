@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/replication_source_snapshot",
+  "title": "Replication Source Snapshot Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "project_id",
+    "replacement_revision",
+    "status",
+    "current_index_ref",
+    "source_snapshot_ref",
+    "source_snapshot_fingerprint",
+    "upstream_plan_revision",
+    "anchor_count"
+  ],
+  "properties": {
+    "version": {"enum": ["2.0", "2.1"]},
+    "project_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "replacement_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "status": {"const": "ready"},
+    "current_index_ref": {"$ref": "#/$defs/reference"},
+    "source_snapshot_ref": {"$ref": "#/$defs/reference"},
+    "source_snapshot_fingerprint": {"$ref": "#/$defs/hash"},
+    "upstream_plan_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "anchor_count": {"type": "integer", "minimum": 1}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+        },
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

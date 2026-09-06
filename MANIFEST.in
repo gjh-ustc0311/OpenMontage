@@ -1,0 +1,6 @@
+include pipeline_defs/tiktok-short-video-replication.yaml
+include skills/meta/replication-scene-replacement-review.md
+recursive-include skills/pipelines/tiktok-short-video-replication *.md
+recursive-include schemas/replication *.json
+recursive-include schemas/artifacts *.json
+recursive-include schemas/tools *.json

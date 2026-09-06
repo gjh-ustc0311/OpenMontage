@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/tools/replication_scene_replacement_v2.schema.json",
+  "title": "Replication Scene Replacement V2.1 Input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operation", "project_id", "output_path"],
+  "properties": {
+    "operation": {
+      "enum": [
+        "initialize", "apply_scene_plan", "record_direction_selection",
+        "prepare_edit", "mark_dispatched", "import_result",
+        "reconcile_execution", "prepare_scene_review", "prepare_global_review",
+        "apply_review", "publish", "validate"
+      ]
+    },
+    "project_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "output_path": {"type": "string", "minLength": 1},
+    "parent_replacement_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "upstream_index_path": {"type": "string", "minLength": 1},
+    "upstream_plan_revision": {
+      "oneOf": [{"type": "string", "pattern": "^r[0-9]{4}$"}, {"type": "null"}]
+    },
+    "supplementary_anchor_confirmations": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "$ref": "../replication/scene_replacement_source_snapshot.schema.json#/$defs/supplementary_anchor_confirmation"
+      }
+    },
+    "submission": {"type": "object"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"operation": {"const": "initialize"}}, "required": ["operation"]},
+      "then": {"required": ["upstream_index_path"], "not": {"required": ["submission"]}},
+      "else": {
+        "not": {
+          "anyOf": [
+            {"required": ["upstream_index_path"]},
+            {"required": ["upstream_plan_revision"]},
+            {"required": ["supplementary_anchor_confirmations"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "operation": {
+            "enum": [
+              "apply_scene_plan", "record_direction_selection", "prepare_edit",
+              "mark_dispatched", "import_result", "reconcile_execution",
+              "prepare_scene_review", "prepare_global_review", "apply_review", "publish"
+            ]
+          }
+        },
+        "required": ["operation"]
+      },
+      "then": {"required": ["parent_replacement_revision"]}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "validate"}}, "required": ["operation"]},
+      "then": {"not": {"anyOf": [{"required": ["parent_replacement_revision"]}, {"required": ["submission"]}]}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "apply_scene_plan"}}, "required": ["operation"]},
+      "then": {"required": ["submission"], "properties": {"submission": {"$ref": "#/$defs/scene_plan_submission"}}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "prepare_edit"}}, "required": ["operation"]},
+      "then": {"required": ["submission"], "properties": {"submission": {"$ref": "#/$defs/prepare_edit_submission"}}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "record_direction_selection"}}, "required": ["operation"]},
+      "then": {"required": ["submission"], "properties": {"submission": {"$ref": "#/$defs/direction_selection_submission"}}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "mark_dispatched"}}, "required": ["operation"]},
+      "then": {"required": ["submission"], "properties": {"submission": {"$ref": "#/$defs/dispatch_submission"}}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "import_result"}}, "required": ["operation"]},
+      "then": {
+        "required": ["submission"],
+        "properties": {"submission": {"$ref": "../replication/scene_replacement_edit_result_submission.schema.json"}}
+      }
+    },
+    {
+      "if": {"properties": {"operation": {"const": "reconcile_execution"}}, "required": ["operation"]},
+      "then": {"required": ["submission"], "properties": {"submission": {"$ref": "#/$defs/reconciliation_submission"}}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "apply_review"}}, "required": ["operation"]},
+      "then": {
+        "required": ["submission"],
+        "properties": {"submission": {"$ref": "../replication/scene_replacement_v2_review_submission.schema.json"}}
+      }
+    },
+    {
+      "if": {"properties": {"operation": {"const": "prepare_scene_review"}}, "required": ["operation"]},
+      "then": {"required": ["submission"], "properties": {"submission": {"$ref": "#/$defs/scene_review_submission"}}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "prepare_global_review"}}, "required": ["operation"]},
+      "then": {"properties": {"submission": {"$ref": "#/$defs/empty_submission"}}}
+    },
+    {
+      "if": {"properties": {"operation": {"const": "publish"}}, "required": ["operation"]},
+      "then": {"properties": {"submission": {"$ref": "#/$defs/publish_submission"}}}
+    }
+  ],
+  "$defs": {
+    "identifier": {"type": "string", "minLength": 1},
+    "path_component": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "human_confirmation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "actor", "reason"],
+      "properties": {
+        "kind": {"const": "human"},
+        "actor": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "scene_plan_submission": {
+      "allOf": [
+        {"$ref": "../replication/scene_replacement_v2_plan.schema.json"},
+        {
+          "not": {
+            "anyOf": [
+              {"required": ["scene_plan_id"]}, {"required": ["replacement_revision"]},
+              {"required": ["status"]}, {"required": ["unassigned_anchor_ids"]}
+            ]
+          },
+          "properties": {
+            "schema_version": {"const": "2.1"},
+            "physical_scenes": {
+              "items": {
+                "allOf": [
+                  {
+                    "not": {
+                      "anyOf": [
+                        {"required": ["dependency_status"]}, {"required": ["main_reference_result_id"]},
+                        {"required": ["sample_review_id"]}, {"required": ["group_review_id"]},
+                        {"required": ["group_evidence_review_id"]}, {"required": ["contact_sheet"]},
+                        {"required": ["selection_receipt_id"]}, {"required": ["selection_options_sha256"]},
+                        {"required": ["selected_direction_sha256"]}, {"required": ["scene_review_candidate_id"]},
+                        {"required": ["difficult_view_result_id"]}
+                      ]
+                    }
+                  },
+                  {
+                    "properties": {
+                      "selected_direction_id": {"const": null},
+                      "selection_confirmation": {"const": null}
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "direction_selection_submission": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "scene_plan_id", "scene_id", "presented_direction_ids", "directions_sha256",
+        "selected_direction_id", "human_confirmation"
+      ],
+      "properties": {
+        "scene_plan_id": {"$ref": "#/$defs/identifier"},
+        "scene_id": {"$ref": "#/$defs/path_component"},
+        "presented_direction_ids": {
+          "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "directions_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "selected_direction_id": {"$ref": "#/$defs/identifier"},
+        "human_confirmation": {"$ref": "#/$defs/human_confirmation"}
+      }
+    },
+    "prepare_edit_submission": {
+      "type": "object", "additionalProperties": false,
+      "required": ["anchor_id", "generation_mode"],
+      "properties": {
+        "anchor_id": {"$ref": "#/$defs/path_component"},
+        "generation_mode": {"enum": ["initial", "local_adjustment", "source_regeneration"]},
+        "trigger_review_id": {"$ref": "#/$defs/identifier"},
+        "trigger_execution_request_id": {"$ref": "#/$defs/identifier"},
+        "base_result_id": {"$ref": "#/$defs/identifier"},
+        "creative_instructions": {"type": "string", "minLength": 1},
+        "inspection_regions": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "bbox", "reason"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "bbox": {"$ref": "../replication/scene_replacement_common.schema.json#/$defs/rectangle"},
+              "reason": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"generation_mode": {"const": "initial"}}, "required": ["generation_mode"]},
+          "then": {"not": {"anyOf": [{"required": ["trigger_review_id"]}, {"required": ["trigger_execution_request_id"]}, {"required": ["base_result_id"]}]}}
+        },
+        {
+          "if": {"properties": {"generation_mode": {"const": "local_adjustment"}}, "required": ["generation_mode"]},
+          "then": {"required": ["trigger_review_id", "base_result_id"]}
+        },
+        {
+          "if": {"properties": {"generation_mode": {"const": "source_regeneration"}}, "required": ["generation_mode"]},
+          "then": {
+            "not": {"required": ["base_result_id"]},
+            "oneOf": [
+              {"required": ["trigger_review_id"], "not": {"required": ["trigger_execution_request_id"]}},
+              {"required": ["trigger_execution_request_id"], "not": {"required": ["trigger_review_id"]}}
+            ]
+          }
+        }
+      ]
+    },
+    "scene_review_submission": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scene_id"],
+      "properties": {
+        "scene_id": {"$ref": "#/$defs/path_component"}
+      }
+    },
+    "empty_submission": {"type": "object", "additionalProperties": false},
+    "dispatch_submission": {
+      "type": "object", "additionalProperties": false,
+      "required": ["request_id"],
+      "properties": {"request_id": {"$ref": "#/$defs/identifier"}}
+    },
+    "reconciliation_submission": {
+      "type": "object", "additionalProperties": false,
+      "required": ["request_id", "resolution"],
+      "properties": {
+        "request_id": {"$ref": "#/$defs/identifier"},
+        "resolution": {"enum": ["success", "confirmed_failed", "confirmed_not_run", "abandoned_unknown"]},
+        "evidence": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "result_id": {"$ref": "#/$defs/identifier"}
+      },
+      "allOf": [
+        {"anyOf": [{"required": ["evidence"]}, {"required": ["reason"]}]},
+        {
+          "if": {"properties": {"resolution": {"const": "success"}}, "required": ["resolution"]},
+          "then": {"required": ["result_id"]}
+        }
+      ]
+    },
+    "publish_submission": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"confirmation": {"$ref": "#/$defs/human_confirmation"}}
+    }
+  }
+}

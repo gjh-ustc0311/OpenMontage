@@ -280,6 +280,15 @@ Stage director skills teach the agent HOW to execute each pipeline stage. Each s
 | Compose Director | `pipelines/localization-dub/compose-director.md` | `compose` | Per-locale rendering, subtitle-fit checks, output labeling |
 | Publish Director | `pipelines/localization-dub/publish-director.md` | `publish` | Locale packaging, metadata precision, QA-note retention |
 
+### TikTok Short Video Replication Pipeline (`pipelines/tiktok-short-video-replication/`) — v0.4
+
+| Skill | File | Stage | Key Capabilities |
+|-------|------|-------|-----------------|
+| **Executive Producer** | `pipelines/tiktok-short-video-replication/executive-producer.md` | `all` | **Three-stage routing, session ImageGen boundary, independent scene progress, recovery** |
+| Source Lock Director | `pipelines/tiktok-short-video-replication/source-lock-director.md` | `source_lock` | Strict Phase 1 revision verification and immutable source snapshot |
+| Scene Replacement Director | `pipelines/tiktok-short-video-replication/scene-replacement-director.md` | `scene_replacement` | Three consumer-realistic directions, recorded human selection, engine-built exact prompt, self-check routing, paired scene boards, and final total-board approval |
+| Delivery Director | `pipelines/tiktok-short-video-replication/delivery-director.md` | `delivery` | Globally approved 720x1280 still-image package with Sxx_Kxx naming and downstream-adaptation boundary |
+
 ## Meta Skills
 
 Cross-cutting skills that apply to all pipelines:
@@ -290,6 +299,7 @@ Cross-cutting skills that apply to all pipelines:
 | Reviewer | `meta/reviewer.md` | Self-review protocol after every stage |
 | Replication Boundary Review | `meta/replication-boundary-review.md` | Independent visual review of adjacent scene relationships |
 | Replication Keyframe Selection | `meta/replication-keyframe-selection.md` | One representative per atomic segment, whole-segment review and targeted observations |
+| Replication Scene Replacement Review | `meta/replication-scene-replacement-review.md` | Direct-result hard gates, North American consumer realism, severity-routed ImageGen rework, and cross-view acceptance |
 | Checkpoint Protocol | `meta/checkpoint-protocol.md` | When/how to checkpoint and request human approval |
 | Skill Creator | `meta/skill-creator.md` | Dynamically create new skills during pipeline runs |
 | Animation Runtime Selector | `meta/animation-runtime-selector.md` | Choose render runtime + animation library per scene |

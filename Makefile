@@ -100,7 +100,7 @@ test-contracts: ensure-venv
 	"$(RUN_PYTHON)" -m pytest tests/contracts/ -v
 
 test-replication: ensure-venv
-	"$(RUN_PYTHON)" -m pytest tests/lib/test_replication_preprocess.py tests/lib/test_representative_selection.py tests/lib/test_replication_frame_images.py tests/tools/test_replication_preprocess.py tests/tools/test_replication_keyframes.py tests/contracts/test_replication_preprocess_contract.py -v
+	"$(RUN_PYTHON)" -m pytest tests/lib/test_replication_preprocess.py tests/lib/test_representative_selection.py tests/lib/test_replication_frame_images.py tests/lib/test_replication_scene_replacement_imaging.py tests/lib/test_replication_scene_replacement_v2.py tests/tools/test_replication_preprocess.py tests/tools/test_replication_keyframes.py tests/tools/test_replication_scene_replacement_tool.py tests/contracts/test_replication_preprocess_contract.py tests/contracts/test_replication_scene_replacement_contract.py tests/contracts/test_tiktok_short_video_replication_pipeline.py -v
 
 # ---- Utilities ----
 

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/scene_replacement_delivery",
+  "title": "Scene Replacement Delivery Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "project_id",
+    "replacement_revision",
+    "status",
+    "delivery_manifest_ref",
+    "delivery_fingerprint",
+    "physical_scene_count",
+    "accepted_result_count",
+    "downstream_adaptation_status"
+  ],
+  "properties": {
+    "version": {"enum": ["2.0", "2.1"]},
+    "project_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "replacement_revision": {"type": "string", "pattern": "^r[0-9]{4}$"},
+    "status": {"const": "ready"},
+    "delivery_manifest_ref": {"$ref": "#/$defs/reference"},
+    "delivery_fingerprint": {"$ref": "#/$defs/hash"},
+    "physical_scene_count": {"type": "integer", "minimum": 1},
+    "accepted_result_count": {"type": "integer", "minimum": 1},
+    "downstream_adaptation_status": {
+      "type": "string",
+      "enum": ["unverified", "verified", "blocked"]
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+        },
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    }
+  }
+}

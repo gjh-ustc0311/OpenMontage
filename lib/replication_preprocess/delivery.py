@@ -11,6 +11,8 @@ from copy import deepcopy
 from fractions import Fraction
 from pathlib import Path
 
+from .config import compute_export_fingerprint, compute_plan_fingerprint
+from .media_assets import media_fingerprint, media_signature
 from .storage import atomic_write_json, resolve_under, sha256_file, sha256_json
 from .selection import validate_document
 
@@ -129,6 +131,11 @@ class DeliveryPackage:
                 raise DeliveryError(f"Delivery file hash mismatch: {asset['path']}")
         return expected
 
+    def validate_reference(self, index: dict, state: dict, reference: dict) -> dict:
+        """Validate one explicit immutable delivery reference and return its manifest."""
+
+        return self._check(index, state, reference)
+
     def validate(self, index: dict, state: dict) -> tuple[dict, list[str]]:
         reference = index.get("delivery")
         if not reference:  # Old packages and pending reviews remain valid.
@@ -229,3 +236,148 @@ class DeliveryPackage:
                     shutil.rmtree(path)
         artifacts = [str(manifest_path), *[str(self.project_dir / a["path"]) for a in _assets(manifest)]]
         return delivery_fields(reference, manifest), artifacts
+
+
+def validate_selected_delivery(
+    project_dir: Path,
+    state: dict,
+    state_ref: dict,
+    export_ref: dict,
+    delivery_ref: dict,
+) -> dict:
+    """Strictly validate a selected current or historic Phase 1 delivery.
+
+    The mutable canonical index is only a discovery mechanism.  This function
+    reconstructs the selected revision's effective index from its hash-bound
+    plan state and export reference, validates the canonical export assets, and
+    then rebuilds the readable delivery manifest byte-for-byte from those
+    immutable inputs.  Updating a delivery manifest and its outer hashes cannot
+    therefore disguise changed timing, ownership, names, or media bytes.
+    """
+
+    root = Path(project_dir).resolve(strict=True)
+
+    def referenced_json(reference: dict, label: str) -> tuple[Path, dict]:
+        if not isinstance(reference, dict):
+            raise DeliveryError(f"{label} reference is missing")
+        unresolved = root / str(reference.get("path", ""))
+        if unresolved.is_symlink():
+            raise DeliveryError(f"{label} must not be a symlink")
+        path = resolve_under(unresolved, root, must_exist=True)
+        if sha256_file(path) != reference.get("sha256"):
+            raise DeliveryError(f"{label} hash mismatch")
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise DeliveryError(f"{label} is not valid JSON") from exc
+        if not isinstance(value, dict):
+            raise DeliveryError(f"{label} must contain a JSON object")
+        return path, value
+
+    state_path, stored_state = referenced_json(state_ref, "Selected plan state")
+    if stored_state != state:
+        raise DeliveryError("Selected plan state differs from its immutable reference")
+    if (
+        state.get("schema_version") != "3.0"
+        or state.get("plan_status") != "ready"
+        or state.get("anchor_status") != "ready"
+    ):
+        raise DeliveryError("Selected plan state is not a ready Phase 1 revision")
+    if not isinstance(export_ref, dict) or export_ref.get("status") != "validated":
+        raise DeliveryError("Selected export reference is not validated")
+    if export_ref.get("plan_state_ref") != state_ref:
+        raise DeliveryError("Selected export is not bound to the selected plan state")
+    report_reference = {
+        "path": export_ref.get("report_path"),
+        "sha256": export_ref.get("report_sha256"),
+    }
+    _, report = referenced_json(report_reference, "Selected export report")
+    config = state.get("config", {})
+    expected_plan_fingerprint = compute_plan_fingerprint(
+        config, state.get("review_digest", "none")
+    )
+    expected_export_fingerprint = compute_export_fingerprint(
+        config, expected_plan_fingerprint
+    )
+    if (
+        report.get("schema_version") != "2.0"
+        or report.get("status") != "validated"
+        or report.get("plan_revision") != state.get("plan_revision")
+        or state.get("plan_fingerprint") != expected_plan_fingerprint
+        or report.get("plan_fingerprint") != expected_plan_fingerprint
+        or report.get("export_fingerprint") != expected_export_fingerprint
+        or report.get("export_config_fingerprint")
+        != config.get("config_fingerprints", {}).get("export")
+        or report.get("config_sources") != config.get("config_sources")
+        or report.get("encoding") != config.get("export")
+        or export_ref.get("export_fingerprint") != expected_export_fingerprint
+        or export_ref.get("export_config_fingerprint")
+        != config.get("config_fingerprints", {}).get("export")
+        or export_ref.get("config_sources") != config.get("config_sources")
+    ):
+        raise DeliveryError("Selected export metadata differs from its plan and configuration")
+
+    planned = {clip["clip_id"]: clip for clip in state.get("generation_clips", [])}
+    reported = {clip.get("clip_id"): clip for clip in report.get("clips", [])}
+    if (
+        len(planned) != len(state.get("generation_clips", []))
+        or len(reported) != len(report.get("clips", []))
+        or set(reported) != set(planned)
+    ):
+        raise DeliveryError("Selected export clips do not exactly match the plan")
+    for clip_id, asset in reported.items():
+        clip = planned[clip_id]
+        signature = media_signature(state, clip, report["encoding"])
+        expected_media_fingerprint = media_fingerprint(
+            state, clip, report["encoding"]
+        )
+        expected_anchor_ids = [
+            anchor["anchor_id"] for anchor in clip.get("keyframes", [])
+        ]
+        try:
+            duration = Fraction(str(asset["duration_seconds"]))
+            planned_duration = Fraction(str(clip["duration_s"]))
+            tolerance = max(
+                Fraction(str(state["source"]["nominal_frame_duration_s"])),
+                Fraction(1, 1000),
+            )
+        except (KeyError, TypeError, ValueError, ZeroDivisionError) as exc:
+            raise DeliveryError(f"Export timing metadata is invalid: {clip_id}") from exc
+        if (
+            asset.get("media_signature") != signature
+            or asset.get("media_fingerprint") != expected_media_fingerprint
+            or asset.get("anchor_ids") != expected_anchor_ids
+            or asset.get("status") != "validated"
+            or asset.get("full_decode") != "passed"
+            or asset.get("video_streams") != 1
+            or bool(asset.get("audio_streams"))
+            != bool(state.get("source", {}).get("audio_present"))
+            or abs(duration - planned_duration) > tolerance
+        ):
+            raise DeliveryError(f"Export clip semantics differ from the plan: {clip_id}")
+        unresolved_asset = root / str(asset.get("path", ""))
+        if unresolved_asset.is_symlink():
+            raise DeliveryError(f"Canonical export must not be a symlink: {clip_id}")
+        asset_path = resolve_under(unresolved_asset, root, must_exist=True)
+        if sha256_file(asset_path) != asset.get("sha256"):
+            raise DeliveryError(f"Canonical export hash mismatch: {clip_id}")
+
+    selected_index = {
+        "manifest_index": {"plan_state.json": deepcopy(state_ref)},
+        "export": deepcopy(export_ref),
+    }
+    package = DeliveryPackage(root, root / "artifacts" / "replication" / "index.json")
+    manifest = package.validate_reference(selected_index, state, delivery_ref)
+    if manifest.get("plan_state_ref") != state_ref or manifest.get("export_ref") != export_ref:
+        raise DeliveryError("Delivery manifest is not bound to the selected revision")
+    return manifest
+
+
+__all__ = [
+    "DeliveryError",
+    "DeliveryPackage",
+    "NAMING_VERSION",
+    "build_manifest",
+    "delivery_fields",
+    "validate_selected_delivery",
+]

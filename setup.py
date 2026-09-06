@@ -1,8 +1,30 @@
 from setuptools import setup, find_packages
 
+
+PHASE2_PIPELINE_DATA = [
+    (
+        "pipeline_defs",
+        ["pipeline_defs/tiktok-short-video-replication.yaml"],
+    ),
+    (
+        "skills/meta",
+        ["skills/meta/replication-scene-replacement-review.md"],
+    ),
+    (
+        "skills/pipelines/tiktok-short-video-replication",
+        [
+            "skills/pipelines/tiktok-short-video-replication/delivery-director.md",
+            "skills/pipelines/tiktok-short-video-replication/executive-producer.md",
+            "skills/pipelines/tiktok-short-video-replication/scene-replacement-director.md",
+            "skills/pipelines/tiktok-short-video-replication/source-lock-director.md",
+        ],
+    ),
+]
+
+
 setup(
     name="openmontage",
-    version="0.1.0",
+    version="0.2.0",
     description="AI-Orchestrated Video Production Platform",
     packages=find_packages(),
     python_requires=">=3.12",
@@ -25,6 +47,15 @@ setup(
     package_data={
         "lib.replication_preprocess": ["profiles/*.yaml"],
         "schemas.replication": ["*.json"],
-        "schemas.tools": ["replication_preprocess.schema.json"],
+        "schemas.artifacts": [
+            "replication_source_snapshot.schema.json",
+            "scene_replacement_package.schema.json",
+            "scene_replacement_delivery.schema.json",
+        ],
+        "schemas.tools": [
+            "replication_preprocess.schema.json",
+            "replication_scene_replacement_v2.schema.json",
+        ],
     },
+    data_files=PHASE2_PIPELINE_DATA,
 )

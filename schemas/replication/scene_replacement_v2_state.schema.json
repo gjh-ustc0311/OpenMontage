@@ -1,0 +1,405 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/scene_replacement_v2_state.schema.json",
+  "title": "Scene Replacement V2.1 Immutable State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "tool", "project_id", "replacement_revision",
+    "parent_replacement_revision", "source_snapshot", "scene_plan",
+    "logical_tasks", "edit_requests", "results", "reviews", "adopted_results",
+    "invalidations", "rebase_history", "operation_history", "delivery"
+  ],
+  "properties": {
+    "schema_version": {"enum": ["2.0", "2.1"]},
+    "tool": {"const": "replication_scene_replacement"},
+    "project_id": {"$ref": "scene_replacement_common.schema.json#/$defs/project_id"},
+    "replacement_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+    "parent_replacement_revision": {
+      "oneOf": [
+        {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+        {"type": "null"}
+      ]
+    },
+    "source_snapshot": {"$ref": "scene_replacement_source_snapshot.schema.json"},
+    "presentation_map": {
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "scene_replacement_source_snapshot.schema.json#/$defs/presentation_entry"}
+    },
+    "scene_plan": {
+      "oneOf": [
+        {"$ref": "scene_replacement_v2_plan.schema.json"},
+        {"type": "null"}
+      ]
+    },
+    "logical_tasks": {"type": "object", "additionalProperties": {"$ref": "#/$defs/logical_task"}},
+    "edit_requests": {
+      "type": "object",
+      "additionalProperties": {"$ref": "scene_replacement_v2_edit_request.schema.json"}
+    },
+    "results": {"type": "object", "additionalProperties": {"$ref": "#/$defs/result_record"}},
+    "reviews": {"type": "array", "items": {"$ref": "#/$defs/persisted_review"}},
+    "scene_review_candidates": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/scene_review_candidate"}
+    },
+    "global_review_candidate": {
+      "oneOf": [{"$ref": "#/$defs/global_review_candidate"}, {"type": "null"}]
+    },
+    "global_review_id": {
+      "oneOf": [
+        {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        {"type": "null"}
+      ]
+    },
+    "adopted_results": {
+      "type": "object",
+      "additionalProperties": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+    },
+    "invalidations": {"type": "array", "items": {"$ref": "#/$defs/invalidation"}},
+    "rebase_history": {"type": "array", "items": {"$ref": "#/$defs/rebase_history"}},
+    "operation_history": {"type": "array", "items": {"$ref": "#/$defs/operation_history"}},
+    "delivery": {
+      "oneOf": [{"$ref": "#/$defs/delivery_ref"}, {"type": "null"}]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": "2.1"}}, "required": ["schema_version"]},
+      "then": {
+        "required": [
+          "presentation_map", "scene_review_candidates",
+          "global_review_candidate", "global_review_id"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "approved_target": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "description", "confirmation"],
+      "properties": {
+        "id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "description": {"type": "string", "minLength": 1},
+        "confirmation": {"$ref": "scene_replacement_common.schema.json#/$defs/human_confirmation"},
+        "selection_receipt_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "selected_direction_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "change_reason": {"type": "string", "minLength": 1},
+        "attempt_scope": {"type": "string", "minLength": 1}
+      }
+    },
+    "logical_task": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "schema_version", "task_id", "anchor_id", "anchor_fingerprint",
+        "anchor_lineage", "approved_target", "status", "dependency_status",
+        "request_ids", "counted_dispatches", "latest_result_id", "related_task_ids"
+      ],
+      "properties": {
+        "schema_version": {"enum": ["2.0", "2.1"]},
+        "task_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "anchor_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "anchor_lineage": {
+          "type": "array", "minItems": 3, "maxItems": 3,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+        },
+        "approved_target": {"$ref": "#/$defs/approved_target"},
+        "status": {"enum": ["active", "exhausted", "superseded"]},
+        "dependency_status": {"enum": ["current", "stale"]},
+        "request_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+        },
+        "current_request_id": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+            {"type": "null"}
+          ]
+        },
+        "counted_dispatches": {"type": "integer", "minimum": 0, "maximum": 3},
+        "latest_result_id": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+            {"type": "null"}
+          ]
+        },
+        "related_task_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+        },
+        "superseded_by_task_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+      }
+    },
+    "execution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requested_capability", "actual_tool"],
+      "properties": {
+        "requested_capability": {"const": "imagegen2"},
+        "actual_tool": {"const": "image_gen"},
+        "model": {"type": ["string", "null"]},
+        "seed": {"type": ["string", "integer", "null"]},
+        "cost_usd": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "normalization": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "method", "image"],
+          "properties": {
+            "status": {"const": "ready"},
+            "method": {
+              "enum": [
+                "identity", "uniform_lanczos_resize_without_crop",
+                "lanczos_resize_to_target_within_5pct_aspect_ratio"
+              ]
+            },
+            "candidate_size": {
+              "type": "array",
+              "prefixItems": [
+                {"type": "integer", "minimum": 1},
+                {"type": "integer", "minimum": 1}
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "target_size": {
+              "const": [720, 1280]
+            },
+            "aspect_ratio_difference_percent": {
+              "type": "number", "minimum": 0, "maximum": 5
+            },
+            "image": {"$ref": "scene_replacement_common.schema.json#/$defs/media_ref"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "reason"],
+          "properties": {
+            "status": {"const": "blocked"},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    },
+    "result_record": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "schema_version", "result_id", "request_id", "request_fingerprint",
+        "logical_task_id", "anchor_id", "source_anchor_fingerprint",
+        "scene_plan_id", "generation_mode", "status", "dependency_status",
+        "generated_image", "normalization", "raw_response", "execution",
+        "comparison", "review_crops", "imported_in_revision"
+      ],
+      "properties": {
+        "schema_version": {"enum": ["2.0", "2.1"]},
+        "result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "request_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "request_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "logical_task_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "source_anchor_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "scene_plan_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "generation_mode": {"enum": ["initial", "local_adjustment", "source_regeneration"]},
+        "base_result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "trigger_review_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "status": {"enum": ["imported", "rejected", "late", "adopted"]},
+        "dependency_status": {"enum": ["current", "stale"]},
+        "generated_image": {"$ref": "scene_replacement_common.schema.json#/$defs/media_ref"},
+        "normalization": {"$ref": "#/$defs/normalization"},
+        "raw_response": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+        "execution": {"$ref": "#/$defs/execution"},
+        "comparison": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+            {"type": "null"}
+          ]
+        },
+        "review_crops": {
+          "type": "array",
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"}
+        },
+        "imported_in_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+        "late_arrival": {"type": "boolean"},
+        "adoption_review_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "stale_reasons": {"type": "array", "items": {"$ref": "#/$defs/stale_reason"}}
+      }
+    },
+    "persisted_review": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "schema_version", "review_id", "stage", "scope_id", "status", "reviewer",
+        "rules", "evidence_refs", "issues", "anchor_ids", "dependency_status",
+        "replacement_revision"
+      ],
+      "properties": {
+        "schema_version": {"enum": ["2.0", "2.1"]},
+        "review_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "stage": {"enum": ["pre_generation", "generated_result", "sample", "group", "global"]},
+        "scope_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "status": {"$ref": "scene_replacement_common.schema.json#/$defs/review_status"},
+        "reviewer": {"$ref": "scene_replacement_common.schema.json#/$defs/reviewer"},
+        "rules": {"type": "array", "items": {"$ref": "scene_replacement_v2_review_submission.schema.json#/$defs/rule"}},
+        "evidence_refs": {"$ref": "scene_replacement_common.schema.json#/$defs/evidence_refs"},
+        "issues": {"type": "array", "items": {"$ref": "scene_replacement_v2_review_submission.schema.json#/$defs/issue"}},
+        "rework_decision": {"$ref": "scene_replacement_v2_review_submission.schema.json#/$defs/rework_decision"},
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "anchor_ids": {
+          "type": "array",
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"}
+        },
+        "scene_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "result_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "candidate_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "candidate_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "comparison_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "adopt_result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "human_confirmation": {"$ref": "scene_replacement_common.schema.json#/$defs/human_confirmation"},
+        "dependency_status": {"enum": ["current", "stale"]},
+        "replacement_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"}
+      }
+    },
+    "evidence_asset": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "scene_replacement_common.schema.json#/$defs/relative_path"},
+        "sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "item_count": {"type": "integer", "minimum": 1, "maximum": 200},
+        "columns": {"type": "integer", "minimum": 1, "maximum": 8},
+        "rows": {"type": "integer", "minimum": 1},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "renderer_version": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "scene_review_candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "schema_version", "candidate_id", "scene_id", "anchor_ids",
+        "ordered_display_ids", "dependency_fingerprint", "dependency_status",
+        "comparison", "binding_manifest", "prepared_in_revision"
+      ],
+      "properties": {
+        "schema_version": {"const": "2.1"},
+        "candidate_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "scene_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "anchor_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"}
+        },
+        "ordered_display_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^S[0-9]{2,}_K[0-9]{2,}$"}
+        },
+        "dependency_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "dependency_status": {"enum": ["current", "stale"]},
+        "stale_reason": {"type": "string", "minLength": 1},
+        "comparison": {"$ref": "#/$defs/evidence_asset"},
+        "binding_manifest": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+        "prepared_in_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"}
+      }
+    },
+    "global_review_candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "schema_version", "candidate_id", "dependency_fingerprint",
+        "dependency_status", "accepted_assets_manifest", "output_root",
+        "global_comparison", "binding_manifest", "item_count",
+        "ordered_display_ids", "renderer_version", "prepared_in_revision"
+      ],
+      "properties": {
+        "schema_version": {"const": "2.1"},
+        "candidate_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "dependency_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "dependency_status": {"enum": ["current", "stale"]},
+        "stale_reason": {"type": "string", "minLength": 1},
+        "accepted_assets_manifest": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+        "output_root": {"$ref": "scene_replacement_common.schema.json#/$defs/relative_path"},
+        "global_comparison": {"$ref": "#/$defs/evidence_asset"},
+        "binding_manifest": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+        "item_count": {"type": "integer", "minimum": 1, "maximum": 200},
+        "ordered_display_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^S[0-9]{2,}_K[0-9]{2,}$"}
+        },
+        "renderer_version": {"const": "paired-grid-v1"},
+        "prepared_in_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"}
+      }
+    },
+    "stale_reason": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "dependency", "invalidation_id"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "dependency": {"type": "string", "minLength": 1},
+        "invalidation_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+      }
+    },
+    "invalidation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["invalidation_id", "reason", "dependency", "anchor_ids"],
+      "properties": {
+        "invalidation_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "reason": {"type": "string", "minLength": 1},
+        "dependency": {"type": "string", "minLength": 1},
+        "anchor_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"}
+        }
+      }
+    },
+    "rebase_history": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "from_snapshot_id", "to_snapshot_id", "from_snapshot_fingerprint",
+        "to_snapshot_fingerprint", "status", "affected_anchor_ids"
+      ],
+      "properties": {
+        "from_snapshot_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "to_snapshot_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "from_snapshot_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "to_snapshot_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "status": {"enum": ["reused", "invalidated"]},
+        "affected_anchor_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"}
+        }
+      }
+    },
+    "operation_history": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "fingerprint", "parent_replacement_revision", "replacement_revision"],
+      "properties": {
+        "operation": {"type": "string", "minLength": 1},
+        "fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "parent_replacement_revision": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+            {"type": "null"}
+          ]
+        },
+        "replacement_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"}
+      }
+    },
+    "delivery_ref": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "delivery_fingerprint", "status", "confirmation"],
+      "properties": {
+        "path": {"$ref": "scene_replacement_common.schema.json#/$defs/relative_path"},
+        "sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "delivery_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "status": {"const": "ready"},
+        "confirmation": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/human_confirmation"},
+            {"type": "null"}
+          ]
+        }
+      }
+    }
+  }
+}

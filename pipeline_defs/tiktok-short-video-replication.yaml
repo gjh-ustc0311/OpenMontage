@@ -1,0 +1,170 @@
+name: tiktok-short-video-replication
+version: "0.4"
+description: >
+  Beta pipeline that locks a validated replication-preprocess revision and
+  directly generates a new full-canvas environment for each approved visual
+  anchor while preserving subject identity, timing, function, and cross-view
+  scene identity. No mask or compositing stage is used.
+category: custom
+stability: beta
+default_checkpoint_policy: guided
+
+reference_input:
+  supported: false
+
+extensions:
+  custom_scripts: false
+  custom_playbooks: false
+  custom_skills: false
+  custom_tools: false
+
+required_skills:
+  - pipelines/tiktok-short-video-replication/executive-producer
+  - pipelines/tiktok-short-video-replication/source-lock-director
+  - pipelines/tiktok-short-video-replication/scene-replacement-director
+  - pipelines/tiktok-short-video-replication/delivery-director
+  - meta/replication-keyframe-selection
+  - meta/replication-scene-replacement-review
+  - meta/checkpoint-protocol
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/tiktok-short-video-replication/executive-producer
+  max_revisions_per_stage: 3
+  max_send_backs: 3
+  max_wall_time_minutes: 120
+
+metadata:
+  prd: docs-dev/prds/tiktok-short-video-replication-phase2-prd.md
+  external_agent_capabilities:
+    - requested_name: imagegen2
+      session_tool: image_gen
+      required: true
+      fallback_allowed: false
+      note: The session tool is called by the Agent, never by the Python tool.
+
+stages:
+  - name: source_lock
+    skill: pipelines/tiktok-short-video-replication/source-lock-director
+    produces:
+      - replication_source_snapshot
+    required_tools:
+      - replication_scene_replacement
+    optional_tools:
+      - replication_preprocess
+    tools_available:
+      - replication_scene_replacement
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - The exact immutable Phase 1 delivery and plan-state revisions are verified
+      - Every editable anchor retains role, purpose, exact PTS, offsets, media metadata, and hashes
+      - Pending, legacy-unreviewed, mixed-revision, or tampered upstream inputs are blocked
+    success_criteria:
+      - Schema-valid replication_source_snapshot checkpoint artifact
+      - Phase 1 plan_status and anchor_status are ready and delivery validation passes
+      - The frozen snapshot is independently hash-verifiable
+
+  - name: scene_replacement
+    skill: pipelines/tiktok-short-video-replication/scene-replacement-director
+    required_artifacts_in:
+      - replication_source_snapshot
+    produces:
+      - scene_replacement_package
+    required_tools:
+      - replication_scene_replacement
+    tools_available:
+      - replication_scene_replacement
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Physical scenes follow environment identity and may contain non-contiguous anchors
+      - Each physical scene has exactly three consumer-realistic directions and a recorded human selection
+      - Scenes match ordinary North American use by consumers aged 30-50 and avoid advertising-studio staging
+      - Subject preservation, functional space, significant environment difference, and cross-view consistency all pass
+      - ImageGen execution history and the initial-plus-two-reworks limit are preserved across recovery
+      - Every dispatched request exposes the exact prompt and uses the built-in image_gen tool
+      - Every prompt requests 720x1280 and imported results within 5% of the 9:16 ratio are normalized to exactly 720x1280
+      - Failed self-review routes minor localized issues to local adjustment and hard, major, or critical issues to source regeneration
+      - Only dependency-current, explicitly adopted results are eligible for scene approval
+      - Per-scene paired boards and one chronological total multi-frame comparison preserve readable Sxx_Kxx bindings
+    success_criteria:
+      - Schema-valid scene_replacement_package checkpoint artifact
+      - Every required anchor has a current adopted direct result and hard-requirement reviews pass
+      - Every adopted direct result is exactly 720x1280
+      - Every physical scene has explicit human group approval
+      - The current total multi-frame comparison has explicit human global approval
+    sub_stages:
+      - name: scene_analysis
+        description: Group anchors by physical environment and record shared and per-anchor constraints.
+        human_approval_default: false
+        tools_available:
+          - replication_scene_replacement
+        review_focus:
+          - Non-contiguous recurrence and uncertain relationships are handled explicitly
+      - name: direction_selection
+        description: Present exactly three North American consumer-realistic scene directions and stop for the user's choice.
+        human_approval_default: true
+        tools_available:
+          - replication_scene_replacement
+        review_focus:
+          - All three directions state visible differences, consumer ownership/access rationale, authentic-use cues, anti-studio constraints, functional-space preservation, and cross-view strategy
+      - name: main_reference
+        description: Directly generate and self-review the scene's main reference sample, then stop for approval.
+        human_approval_default: true
+        tools_available:
+          - replication_scene_replacement
+        review_focus:
+          - Main reference proves function, contact, perspective, light compatibility, and material handling
+      - name: difficult_view
+        description: Validate the view revealing the most new structure before ordinary expansion.
+        condition: difficult_view_required
+        human_approval_default: false
+        tools_available:
+          - replication_scene_replacement
+        review_focus:
+          - New regions and occlusions remain consistent with the approved scene design
+      - name: group_expansion
+        description: Expand from the approved design using each anchor's own source evidence.
+        human_approval_default: false
+        tools_available:
+          - replication_scene_replacement
+        review_focus:
+          - Results do not form a sequential generated-reference chain
+      - name: group_approval
+        description: Prepare and present the scene's paired source/direct-result comparison board, then stop for approval.
+        human_approval_default: true
+        tools_available:
+          - replication_scene_replacement
+        review_focus:
+          - All hard requirements and anchor coverage remain visible across the group
+      - name: global_approval
+        description: Prepare one chronological total multi-frame comparison for all anchors, present it, and stop for final human approval.
+        human_approval_default: true
+        tools_available:
+          - replication_scene_replacement
+        review_focus:
+          - Every Sxx_Kxx keyframe appears once, in clip and keyframe order, with its bound source and generated result
+
+  - name: delivery
+    skill: pipelines/tiktok-short-video-replication/delivery-director
+    required_artifacts_in:
+      - scene_replacement_package
+    produces:
+      - scene_replacement_delivery
+    required_tools:
+      - replication_scene_replacement
+    tools_available:
+      - replication_scene_replacement
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Delivery includes only accepted current results and preserves original source timing
+      - Every image traces to a source anchor, scene design, exact prompt, request, self-review, and approval
+      - Output clips and keyframes retain readable sequence ownership names such as S01.mp4 and S01_K01.png
+      - Delivery binds the approved total multi-frame comparison and its cell manifest
+      - Static-image acceptance is distinct from downstream video-model compatibility
+    success_criteria:
+      - Schema-valid scene_replacement_delivery checkpoint artifact
+      - Delivery manifest and referenced files pass deterministic validation
+      - Downstream adaptation remains unverified unless separately evidenced

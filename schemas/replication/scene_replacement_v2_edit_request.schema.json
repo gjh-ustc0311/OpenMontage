@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/scene_replacement_v2_edit_request.schema.json",
+  "title": "Persisted Scene Replacement V2.1 Generation Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "request_id", "request_fingerprint", "logical_task_id",
+    "anchor_id", "anchor_fingerprint", "physical_scene_id", "scene_plan_id",
+    "selected_direction_id", "approved_target", "source_snapshot_fingerprint",
+    "upstream_plan_revision", "source_image", "generation_mode", "prompt",
+    "prompt_sha256", "inspection_regions",
+    "requested_capability", "required_actual_tool", "attempt_number",
+    "preparation_ordinal", "status", "execution_status", "dependency_status",
+    "prepared_in_revision"
+  ],
+  "properties": {
+    "schema_version": {"enum": ["2.0", "2.1"]},
+    "request_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "request_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "logical_task_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+    "anchor_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "physical_scene_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "scene_plan_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "selected_direction_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "selection_receipt_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "selected_direction_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "approved_target": {"$ref": "#/$defs/approved_target"},
+    "source_snapshot_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "upstream_plan_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+    "source_image": {"$ref": "scene_replacement_common.schema.json#/$defs/media_ref"},
+    "generation_mode": {"enum": ["initial", "local_adjustment", "source_regeneration"]},
+    "trigger_review_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "trigger_execution_request_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "base_result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "prompt": {"type": "string", "minLength": 1},
+    "prompt_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "ordered_references": {
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "#/$defs/ordered_reference"}
+    },
+    "prompt_builder_version": {"type": "string", "minLength": 1},
+    "ordered_image_references": {
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "#/$defs/ordered_reference"}
+    },
+    "context_refs": {
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "#/$defs/context_reference"}
+    },
+    "inspection_regions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/inspection_region"}
+    },
+    "requested_capability": {"const": "imagegen2"},
+    "required_actual_tool": {"const": "image_gen"},
+    "attempt_number": {"type": "integer", "minimum": 1, "maximum": 3},
+    "preparation_ordinal": {"type": "integer", "minimum": 1},
+    "prepared_in_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+    "status": {"enum": ["prepared", "dispatched", "succeeded", "failed", "superseded"]},
+    "execution_status": {
+      "enum": [
+        "not_started", "unknown", "succeeded", "confirmed_failed",
+        "confirmed_not_run", "abandoned_unknown"
+      ]
+    },
+    "dependency_status": {"enum": ["current", "stale"]},
+    "dependency_invalidation": {"$ref": "#/$defs/stale_reason"},
+    "dispatched_in_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+    "counts_toward_limit": {"type": "boolean"},
+    "result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "late_result_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+    },
+    "execution": {"$ref": "#/$defs/execution"},
+    "error": {"type": "string", "minLength": 1},
+    "resolved_in_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+    "superseded_by_request_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "reconciliation": {"$ref": "#/$defs/reconciliation"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": "2.0"}}, "required": ["schema_version"]},
+      "then": {"required": ["ordered_references"]}
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": "2.1"}}, "required": ["schema_version"]},
+      "then": {
+        "required": [
+          "selection_receipt_id", "selected_direction_sha256",
+          "prompt_builder_version", "ordered_image_references", "context_refs"
+        ]
+      }
+    },
+    {
+      "if": {"properties": {"generation_mode": {"const": "initial"}}, "required": ["generation_mode"]},
+      "then": {"not": {"anyOf": [{"required": ["trigger_review_id"]}, {"required": ["trigger_execution_request_id"]}, {"required": ["base_result_id"]}]}}
+    },
+    {
+      "if": {"properties": {"generation_mode": {"const": "local_adjustment"}}, "required": ["generation_mode"]},
+      "then": {"required": ["trigger_review_id", "base_result_id"]}
+    },
+    {
+      "if": {"properties": {"generation_mode": {"const": "source_regeneration"}}, "required": ["generation_mode"]},
+      "then": {
+        "not": {"required": ["base_result_id"]},
+        "oneOf": [
+          {"required": ["trigger_review_id"], "not": {"required": ["trigger_execution_request_id"]}},
+          {"required": ["trigger_execution_request_id"], "not": {"required": ["trigger_review_id"]}}
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "approved_target": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "description", "confirmation"],
+      "properties": {
+        "id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "description": {"type": "string", "minLength": 1},
+        "confirmation": {"$ref": "scene_replacement_common.schema.json#/$defs/human_confirmation"},
+        "selection_receipt_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "selected_direction_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "change_reason": {"type": "string", "minLength": 1},
+        "attempt_scope": {"type": "string", "minLength": 1}
+      }
+    },
+    "ordered_reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "usage", "reference"],
+      "properties": {
+        "role": {
+          "enum": [
+            "source_frame", "generated_result", "scene_design",
+            "main_reference", "supplementary_reference"
+          ]
+        },
+        "usage": {"enum": ["edit_target", "invariant_reference", "design_record", "continuity_reference"]},
+        "reference": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+            {"$ref": "scene_replacement_common.schema.json#/$defs/media_ref"}
+          ]
+        },
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+      }
+    },
+    "context_reference": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "usage", "reference"],
+      "properties": {
+        "role": {"const": "scene_design"},
+        "usage": {"const": "design_record"},
+        "reference": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"}
+      }
+    },
+    "inspection_region": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "bbox", "reason"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "bbox": {"$ref": "scene_replacement_common.schema.json#/$defs/rectangle"},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "execution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requested_capability", "actual_tool"],
+      "properties": {
+        "requested_capability": {"const": "imagegen2"},
+        "actual_tool": {"const": "image_gen"},
+        "model": {"type": ["string", "null"]},
+        "seed": {"type": ["string", "integer", "null"]},
+        "cost_usd": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "stale_reason": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason", "dependency", "invalidation_id"],
+      "properties": {
+        "reason": {"type": "string", "minLength": 1},
+        "dependency": {"type": "string", "minLength": 1},
+        "invalidation_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+      }
+    },
+    "reconciliation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["request_id", "resolution", "replacement_revision"],
+      "properties": {
+        "request_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "resolution": {"enum": ["success", "confirmed_failed", "confirmed_not_run", "abandoned_unknown"]},
+        "evidence": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1},
+        "result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "replacement_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"}
+      },
+      "anyOf": [{"required": ["evidence"]}, {"required": ["reason"]}]
+    }
+  }
+}

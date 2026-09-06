@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/scene_replacement_source_snapshot.schema.json",
+  "title": "Scene Replacement Source Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool",
+    "snapshot_id",
+    "project_id",
+    "replacement_revision",
+    "upstream",
+    "timeline",
+    "anchors",
+    "supplementary_anchor_confirmations",
+    "fingerprints"
+  ],
+  "properties": {
+    "schema_version": {"enum": ["1.0", "1.1"]},
+    "tool": {"const": "replication_scene_replacement"},
+    "snapshot_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "project_id": {"$ref": "scene_replacement_common.schema.json#/$defs/project_id"},
+    "replacement_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "tool",
+        "plan_revision",
+        "index_observed_ref",
+        "delivery_ref",
+        "plan_state_ref",
+        "source_video_ref",
+        "config_fingerprint",
+        "selection_fingerprint",
+        "delivery_fingerprint"
+      ],
+      "properties": {
+        "schema_version": {"const": "3.0"},
+        "tool": {"const": "replication_preprocess"},
+        "plan_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+        "index_observed_ref": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+        "delivery_ref": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+        "plan_state_ref": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"},
+        "source_video_ref": {"$ref": "#/$defs/external_source"},
+        "config_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "selection_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "delivery_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"}
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["atomic_segments", "generation_clips", "dropped_segments"],
+      "properties": {
+        "atomic_segments": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/atomic_segment"}
+        },
+        "generation_clips": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/generation_clip"}
+        },
+        "dropped_segments": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/dropped_segment"}
+        }
+      }
+    },
+    "anchors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/anchor"}
+    },
+    "presentation_map": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/presentation_entry"}
+    },
+    "supplementary_anchor_confirmations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/supplementary_anchor_confirmation"}
+    },
+    "fingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timeline", "anchor_set", "snapshot"],
+      "properties": {
+        "timeline": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "anchor_set": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "presentation": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "snapshot": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": "1.1"}}, "required": ["schema_version"]},
+      "then": {
+        "required": ["presentation_map"],
+        "properties": {"fingerprints": {"required": ["presentation"]}}
+      }
+    }
+  ],
+  "$defs": {
+    "presentation_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clip_id", "clip_sequence", "clip_display_id", "anchor_id",
+        "keyframe_sequence", "display_id", "timeline_sequence"
+      ],
+      "properties": {
+        "clip_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "clip_sequence": {"type": "integer", "minimum": 1},
+        "clip_display_id": {"type": "string", "pattern": "^S[0-9]{2,}$"},
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "keyframe_sequence": {"type": "integer", "minimum": 1},
+        "display_id": {"type": "string", "pattern": "^S[0-9]{2,}_K[0-9]{2,}$"},
+        "timeline_sequence": {"type": "integer", "minimum": 1}
+      }
+    },
+    "supplementary_anchor_confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor_id", "human_confirmation", "gap", "purpose", "upstream_plan_revision"
+      ],
+      "properties": {
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "human_confirmation": {"$ref": "scene_replacement_common.schema.json#/$defs/human_confirmation"},
+        "gap": {"type": "string", "minLength": 1},
+        "purpose": {"type": "string", "minLength": 1},
+        "upstream_plan_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"}
+      }
+    },
+    "external_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["external_path", "sha256", "start", "end", "time_base", "rotation", "color"],
+      "properties": {
+        "external_path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "start": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "end": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "time_base": {"$ref": "scene_replacement_common.schema.json#/$defs/time_base"},
+        "rotation": {"type": "integer"},
+        "color": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pix_fmt", "color_range", "color_space", "color_transfer", "color_primaries"],
+          "properties": {
+            "pix_fmt": {"type": ["string", "null"]},
+            "color_range": {"type": ["string", "null"]},
+            "color_space": {"type": ["string", "null"]},
+            "color_transfer": {"type": ["string", "null"]},
+            "color_primaries": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "atomic_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segment_id", "start", "end"],
+      "properties": {
+        "segment_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "start": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "end": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"}
+      }
+    },
+    "generation_clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clip_id", "start", "end", "atomic_segment_ids"],
+      "properties": {
+        "clip_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "start": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "end": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "atomic_segment_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"}
+        }
+      }
+    },
+    "dropped_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["segment_id", "start", "end"],
+      "properties": {
+        "segment_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "start": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "end": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor_id",
+        "edit_slot_id",
+        "role",
+        "purpose",
+        "atomic_segment_id",
+        "clip_id",
+        "source_time",
+        "atomic_segment_offset",
+        "generation_clip_offset",
+        "image",
+        "selection_refs"
+      ],
+      "properties": {
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "edit_slot_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "role": {
+          "type": "string",
+          "enum": ["primary_representative", "supplementary_anchor"]
+        },
+        "purpose": {"type": "string", "minLength": 1},
+        "atomic_segment_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "clip_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "source_time": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "atomic_segment_offset": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "generation_clip_offset": {"$ref": "scene_replacement_common.schema.json#/$defs/time_point"},
+        "image": {"$ref": "scene_replacement_common.schema.json#/$defs/media_ref"},
+        "selection_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/reference"}
+        }
+      }
+    }
+  }
+}

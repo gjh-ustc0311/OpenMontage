@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/scene_replacement_v2_plan.schema.json",
+  "title": "Scene Replacement V2.1 Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "source_snapshot_fingerprint", "audience_profile",
+    "physical_scenes"
+  ],
+  "properties": {
+    "schema_version": {"enum": ["2.0", "2.1"]},
+    "source_snapshot_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "audience_profile": {"$ref": "#/$defs/audience_profile"},
+    "scene_plan_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "replacement_revision": {"$ref": "scene_replacement_common.schema.json#/$defs/revision"},
+    "status": {"enum": ["awaiting_human", "ready", "needs_reconfirmation"]},
+    "unassigned_anchor_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"}
+    },
+    "physical_scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/physical_scene"}
+    }
+  },
+  "$defs": {
+    "audience_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "market", "age_min", "age_max", "environment_policy", "staging_policy"
+      ],
+      "properties": {
+        "market": {"const": "north_america"},
+        "age_min": {"const": 30},
+        "age_max": {"const": 50},
+        "environment_policy": {"const": "ordinary_consumer_real_use"},
+        "staging_policy": {"const": "non_studio"}
+      }
+    },
+    "physical_scene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scene_id", "anchor_ids", "shared_constraints", "per_anchor_constraints",
+        "directions", "selected_direction_id", "selection_confirmation",
+        "main_anchor_id", "difficult_view"
+      ],
+      "properties": {
+        "scene_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "dependency_status": {"enum": ["current", "needs_reconfirmation"]},
+        "anchor_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"}
+        },
+        "shared_constraints": {
+          "type": "array", "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "per_anchor_constraints": {
+          "type": "object", "minProperties": 1,
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          }
+        },
+        "directions": {
+          "type": "array", "minItems": 3, "maxItems": 3,
+          "items": {"$ref": "#/$defs/direction"}
+        },
+        "selected_direction_id": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+            {"type": "null"}
+          ]
+        },
+        "selection_confirmation": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/human_confirmation"},
+            {"type": "null"}
+          ]
+        },
+        "selection_receipt_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "selection_options_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "selected_direction_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "main_anchor_id": {
+          "oneOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+            {"type": "null"}
+          ]
+        },
+        "difficult_view": {"$ref": "#/$defs/difficult_view"},
+        "main_reference_result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "sample_review_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "group_review_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "group_evidence_review_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "scene_review_candidate_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "difficult_view_result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "contact_sheet": {"$ref": "#/$defs/contact_sheet"}
+      }
+    },
+    "direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direction_id", "description", "visual_changes", "function_preservation",
+        "cross_view_strategy", "consumer_context"
+      ],
+      "properties": {
+        "direction_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "description": {"type": "string", "minLength": 1},
+        "visual_changes": {
+          "type": "array", "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "function_preservation": {"type": "string", "minLength": 1},
+        "cross_view_strategy": {"type": "string", "minLength": 1},
+        "consumer_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "setting_type", "ownership_or_access_rationale", "usage_habit_rationale",
+            "authenticity_cues", "anti_studio_constraints"
+          ],
+          "properties": {
+            "setting_type": {"type": "string", "minLength": 1},
+            "ownership_or_access_rationale": {"type": "string", "minLength": 1},
+            "usage_habit_rationale": {"type": "string", "minLength": 1},
+            "authenticity_cues": {
+              "type": "array", "minItems": 2,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "anti_studio_constraints": {
+              "type": "array", "minItems": 1,
+              "items": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "difficult_view": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "reason"],
+          "properties": {"status": {"const": "pending"}, "reason": {"type": "string", "minLength": 1}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "anchor_id", "reason"],
+          "properties": {
+            "status": {"const": "required"},
+            "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+            "reason": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "reason"],
+          "properties": {"status": {"const": "not_required"}, "reason": {"type": "string", "minLength": 1}}
+        }
+      ]
+    },
+    "contact_sheet": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "item_count", "columns", "rows"],
+      "properties": {
+        "path": {"$ref": "scene_replacement_common.schema.json#/$defs/relative_path"},
+        "sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+        "item_count": {"type": "integer", "minimum": 1, "maximum": 200},
+        "columns": {"type": "integer", "minimum": 1, "maximum": 8},
+        "rows": {"type": "integer", "minimum": 1},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "renderer_version": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

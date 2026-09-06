@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/scene_replacement_v2_review_submission.schema.json",
+  "title": "Scene Replacement V2.1 Review Submission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "stage", "scope_id", "status", "reviewer", "rules", "evidence_refs", "issues"
+  ],
+  "properties": {
+    "stage": {"enum": ["pre_generation", "generated_result", "sample", "group", "global"]},
+    "scope_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+    "anchor_ids": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"}
+    },
+    "scene_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+    "result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "result_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "candidate_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "candidate_fingerprint": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "comparison_sha256": {"$ref": "scene_replacement_common.schema.json#/$defs/hash"},
+    "adopt_result_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "status": {"$ref": "scene_replacement_common.schema.json#/$defs/review_status"},
+    "reviewer": {"$ref": "scene_replacement_common.schema.json#/$defs/reviewer"},
+    "rules": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/rule"}},
+    "evidence_refs": {"$ref": "scene_replacement_common.schema.json#/$defs/evidence_refs"},
+    "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "rework_decision": {"$ref": "#/$defs/rework_decision"},
+    "human_confirmation": {"$ref": "scene_replacement_common.schema.json#/$defs/human_confirmation"}
+  },
+  "anyOf": [{"required": ["anchor_id"]}, {"required": ["anchor_ids"]}, {"required": ["scene_id"]}],
+  "allOf": [
+    {
+      "if": {"properties": {"stage": {"enum": ["generated_result", "sample"]}}, "required": ["stage"]},
+      "then": {"required": ["result_id", "result_sha256"]}
+    },
+    {
+      "if": {"properties": {"stage": {"enum": ["sample", "group"]}}, "required": ["stage"]},
+      "then": {"required": ["scene_id"]}
+    },
+    {
+      "if": {"properties": {"stage": {"const": "group"}}, "required": ["stage"]},
+      "then": {"required": ["candidate_id", "candidate_fingerprint", "anchor_ids"]}
+    },
+    {
+      "if": {"properties": {"stage": {"const": "global"}}, "required": ["stage"]},
+      "then": {
+        "required": [
+          "candidate_id", "candidate_fingerprint", "comparison_sha256",
+          "anchor_ids", "human_confirmation"
+        ],
+        "properties": {"status": {"const": "pass"}}
+      }
+    },
+    {
+      "if": {
+        "allOf": [
+          {"properties": {"stage": {"const": "generated_result"}}, "required": ["stage"]},
+          {"properties": {"status": {"const": "fail"}}, "required": ["status"]}
+        ]
+      },
+      "then": {"required": ["rework_decision"], "properties": {"issues": {"minItems": 1}}}
+    },
+    {
+      "if": {"required": ["rework_decision"]},
+      "then": {"properties": {"stage": {"const": "generated_result"}, "status": {"const": "fail"}}}
+    },
+    {
+      "if": {"required": ["adopt_result_id"]},
+      "then": {"properties": {"stage": {"const": "generated_result"}, "status": {"const": "pass"}}}
+    },
+    {
+      "if": {
+        "allOf": [
+          {"properties": {"stage": {"enum": ["sample", "group", "global"]}}, "required": ["stage"]},
+          {"properties": {"status": {"const": "pass"}}, "required": ["status"]}
+        ]
+      },
+      "then": {"required": ["human_confirmation"]}
+    },
+    {
+      "if": {"properties": {"status": {"const": "pass"}}, "required": ["status"]},
+      "then": {"properties": {"evidence_refs": {"minItems": 1}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "fail"}}, "required": ["status"]},
+      "then": {"properties": {"issues": {"minItems": 1}}}
+    }
+  ],
+  "$defs": {
+    "rule": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rule_id", "status", "reason", "evidence_refs"],
+      "properties": {
+        "rule_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "status": {"$ref": "scene_replacement_common.schema.json#/$defs/review_status"},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence_refs": {"$ref": "scene_replacement_common.schema.json#/$defs/evidence_refs"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "pass"}}, "required": ["status"]},
+          "then": {"properties": {"evidence_refs": {"minItems": 1}}}
+        }
+      ]
+    },
+    "issue": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "rule_id", "anchor_id", "region", "severity", "evidence_refs",
+        "observed_failure", "possible_cause", "rework_action", "affected_scope",
+        "expected_improvement"
+      ],
+      "properties": {
+        "rule_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+        "anchor_id": {"$ref": "scene_replacement_common.schema.json#/$defs/path_component"},
+        "region": {"type": "string", "minLength": 1},
+        "severity": {"enum": ["minor", "major", "critical"]},
+        "evidence_refs": {
+          "allOf": [
+            {"$ref": "scene_replacement_common.schema.json#/$defs/evidence_refs"},
+            {"minItems": 1}
+          ]
+        },
+        "observed_failure": {"type": "string", "minLength": 1},
+        "possible_cause": {"type": "string", "minLength": 1},
+        "rework_action": {"type": "string", "minLength": 1},
+        "affected_scope": {"type": "string", "minLength": 1},
+        "expected_improvement": {"type": "string", "minLength": 1}
+      }
+    },
+    "rework_decision": {
+      "type": "object", "additionalProperties": false,
+      "required": ["highest_severity", "strategy", "reason"],
+      "properties": {
+        "highest_severity": {"enum": ["minor", "major", "critical"]},
+        "strategy": {"enum": ["local_adjustment", "source_regeneration"]},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

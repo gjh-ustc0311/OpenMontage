@@ -29,11 +29,23 @@ For each requested atomic segment, prefer in this order:
 A clear moving frame is eligible. The highest technical score is not a semantic
 approval. Do not default to the first frame or label a later image as time zero.
 Choose exactly one primary representative per ready atomic segment. Do not
-create, recommend or deliver supplementary editing anchors. Additional views,
-product states, contact/occlusion relationships and motion samples remain
-observation evidence; they do not increase the number of images to edit.
-Choose the single frame that best covers the priorities above. Record material
-information gaps honestly instead of adding another editing anchor.
+create or deliver supplementary editing anchors by default. Additional views,
+product states, contact/occlusion relationships and motion samples normally
+remain observation evidence; they do not increase the number of images to edit.
+Choose the single frame that best covers the priorities above and record
+material information gaps honestly.
+
+### Phase 2 supplementary-edit-anchor exception
+
+There is one narrow exception for the Phase 2 scene-replacement pipeline. If it
+identifies a concrete missing functional relationship or difficult view, first
+show the user the exact gap, proposed segment/candidate scope, and added editing
+cost. Explicit human confirmation is required before you start a new Phase 1
+selection revision and adopt the minimum necessary supplementary anchor. Pass
+that approval back to Phase 2 as a revision-bound
+`supplementary_anchor_confirmations` record containing the anchor, gap, purpose,
+and human confirmation. The Agent may not infer authorization from a general
+"continue" or from the existence of another camera angle.
 
 ## Get missing evidence
 
@@ -65,8 +77,9 @@ Use `schema_version: "1.0"`, and identify yourself using
 for every item in the request:
 
 - `segment_id`, `status`, `rationale`, `evidence_refs`, and `information_gaps`;
-- for `status: "ready"`, one `primary_candidate_id` and
-  `supplementary_anchors: []`;
+- for `status: "ready"`, one `primary_candidate_id`; use
+  `supplementary_anchors: []` unless the Phase 2 exception above has a recorded
+  user authorization, then include only the confirmed candidate and purpose;
 - for `needs_more_evidence` or `needs_human`, no adopted candidate IDs.
 
 Cite actual candidate IDs you viewed, including the selected primary. Explain
@@ -93,6 +106,13 @@ record the user's policy change, and retain prior immutable revisions. Do not
 delete files or edit the canonical manifests by hand. Check that the new active
 package contains exactly one primary and no supplementary anchors per ready
 atomic segment; update the handoff summary and contact sheet accordingly.
+
+When the user authorizes a new Phase 2 supplementary anchor, also use
+`keyframe_review_segment_ids` for the affected segment. Obtain targeted
+observation evidence first when the desired view is not already a candidate,
+then submit the primary plus the single authorized supplementary candidate and
+its concrete purpose. After Phase 1 publishes the new immutable revision, return
+to `source_lock` and explicitly rebase Phase 2 before any generation request.
 
 Consume the v3 canonical package, image roles, exact source times and per-clip
 offsets. `plan_status=ready` permits timeline export; usable visual anchors also

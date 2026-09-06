@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/scene_replacement_common.schema.json",
+  "title": "Scene Replacement Common Types",
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^r[0-9]{4}$"
+    },
+    "project_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "path_component": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+"
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/relative_path"},
+        "sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "time_base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["num", "den"],
+      "properties": {
+        "num": {"type": "integer", "minimum": 1},
+        "den": {"type": "integer", "minimum": 1}
+      }
+    },
+    "time_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pts", "time_base", "seconds"],
+      "properties": {
+        "pts": {"type": "integer"},
+        "time_base": {"$ref": "#/$defs/time_base"},
+        "seconds": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+        }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["ai_coding_assistant", "human"]
+        },
+        "name": {"type": "string", "minLength": 1}
+      }
+    },
+    "human_confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "actor", "reason"],
+      "properties": {
+        "kind": {"const": "human"},
+        "actor": {"type": "string", "minLength": 1},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "review_status": {
+      "type": "string",
+      "enum": ["pass", "fail", "needs_confirmation", "not_applicable"]
+    },
+    "evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/reference"}
+    },
+    "media_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "width", "height", "format", "orientation", "color"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1},
+        "path": {"$ref": "#/$defs/relative_path"},
+        "sha256": {"$ref": "#/$defs/hash"},
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "format": {"type": "string", "minLength": 1},
+        "mode": {"type": "string", "minLength": 1},
+        "orientation": {"type": "string", "minLength": 1},
+        "color": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "source_to_working_transform"],
+          "properties": {
+            "mode": {"type": "string", "minLength": 1},
+            "icc_profile_sha256": {
+              "oneOf": [
+                {"$ref": "#/$defs/hash"},
+                {"type": "null"}
+              ]
+            },
+            "source_to_working_transform": {"type": "string", "minLength": 1},
+            "working_space": {"type": "string", "minLength": 1}
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha256", "format", "mode", "size", "exif_orientation"],
+          "properties": {
+            "sha256": {"$ref": "#/$defs/hash"},
+            "format": {"type": ["string", "null"]},
+            "mode": {"type": "string", "minLength": 1},
+            "size": {
+              "type": "array",
+              "prefixItems": [
+                {"type": "integer", "minimum": 1},
+                {"type": "integer", "minimum": 1}
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "exif_orientation": {"type": "integer", "minimum": 1},
+            "icc_profile_present": {"type": "boolean"},
+            "icc_profile_sha256": {
+              "oneOf": [
+                {"$ref": "#/$defs/hash"},
+                {"type": "null"}
+              ]
+            }
+          }
+        },
+        "raw": {"$ref": "#/$defs/reference"}
+      }
+    },
+    "rectangle": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 0},
+        {"type": "integer", "minimum": 0},
+        {"type": "integer", "minimum": 1},
+        {"type": "integer", "minimum": 1}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "size": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 1},
+        {"type": "integer", "minimum": 1}
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

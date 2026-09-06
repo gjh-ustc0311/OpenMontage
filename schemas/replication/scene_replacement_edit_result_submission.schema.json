@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openmontage.local/schemas/replication/scene_replacement_edit_result_submission.schema.json",
+  "title": "Scene Replacement Edit Result Submission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request_id", "success", "execution"],
+  "properties": {
+    "request_id": {"$ref": "scene_replacement_common.schema.json#/$defs/identifier"},
+    "success": {"type": "boolean"},
+    "result_path": {"type": "string", "minLength": 1},
+    "error": {"type": "string", "minLength": 1},
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requested_capability", "actual_tool"],
+      "properties": {
+        "requested_capability": {"const": "imagegen2"},
+        "actual_tool": {"const": "image_gen"},
+        "model": {"type": ["string", "null"]},
+        "seed": {
+          "type": ["string", "integer", "null"]
+        },
+        "cost_usd": {"type": ["number", "null"], "minimum": 0}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"success": {"const": true}}, "required": ["success"]},
+      "then": {"required": ["result_path"], "not": {"required": ["error"]}},
+      "else": {"required": ["error"], "not": {"required": ["result_path"]}}
+    }
+  ]
+}

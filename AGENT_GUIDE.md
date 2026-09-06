@@ -46,6 +46,20 @@ This is a first-class workflow in OpenMontage.
 
 If a model misses this distinction, it will often fall back to plain search + guesswork. That is incorrect for OpenMontage.
 
+## Replication Scene-Replacement Entry Point
+
+When the user asks to replace backgrounds for Phase 1 replication anchors, to
+continue the TikTok short-video replication workflow, or cites the Phase 2 scene
+replacement PRD, route to `tiktok-short-video-replication`.
+
+Read `pipeline_defs/tiktok-short-video-replication.yaml` and its Executive
+Producer first. This pipeline consumes a specific validated Phase 1 revision and
+produces accepted full-canvas still-image anchors by direct model generation;
+it does not use masks or compositing and does not assemble the final video. Its
+requested `imagegen2` capability is the current session's built-in `image_gen`,
+called by the Agent. It is not the repository's legacy image generator, and no
+fallback is permitted without an explicit user choice.
+
 ## Rule Zero — All Production Goes Through a Pipeline
 
 **Every video production request MUST go through the pipeline system. No exceptions.**
@@ -256,6 +270,7 @@ If the folder has tracks, the proposal and asset stages should present them as o
 | `hybrid` | Source footage plus support visuals | production |
 | `avatar-spokesperson` | Presenter-led avatar or lip-sync videos | production |
 | `localization-dub` | Subtitle, dub, and translated variants | beta |
+| `tiktok-short-video-replication` | Phase 1 anchor background replacement with protected subjects | beta |
 | `framework-smoke` | Test: minimal 2-stage smoke test | test |
 
 > **Beta pipelines** have not been fully audited. They work, but expect rough edges. Mention this when the user selects one.
